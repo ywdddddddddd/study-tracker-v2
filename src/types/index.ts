@@ -119,7 +119,8 @@ export interface ScheduleDay {
 export interface FoodItem {
   name: string;
   unit: string;
-  calories: number;
+  gramsPerUnit: number; // 每"单位"对应多少克 (如: 1个鸡蛋=50g, 则 gramsPerUnit=50)
+  calories: number; // 每单位的热量
   protein: number;
   carbs: number;
   fat: number;

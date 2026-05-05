@@ -2,14 +2,36 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { StatCard } from '../ui/shared';
 import { Progress } from '../ui/progress';
-import { db, type DailyPlan, type Profile, getOrCreateProfile } from '../../lib/db';
+import { db, type DailyPlan, type Profile, getOrCreateProfile, calculateMacros } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
+import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
+
+function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
+  let total = 0;
+  for (const ex of w.exercises) {
+    if (ex.kind === 'cardio' && ex.cardioParams) {
+      const speed = ex.cardioParams.speed || 0;
+      const incline = ex.cardioParams.incline || 0;
+      const duration = ex.cardioParams.duration || 0;
+      let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
+      met += incline * 0.5;
+      total += met * weightKg * (duration / 60);
+    } else if (ex.kind === 'strength') {
+      const strengthCount = w.exercises.filter(e => e.kind === 'strength').length || 1;
+      const share = (w.duration || 60) / strengthCount;
+      total += 0.1 * weightKg * share;
+    }
+  }
+  return Math.round(total);
+}
 
 export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [todayPlan, setTodayPlan] = useState<DailyPlan | null>(null);
   const [stats, setStats] = useState({ completed: 0, total: 0, rate: 0, streak: 0 });
+  const [foodTotal, setFoodTotal] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const [workoutBurn, setWorkoutBurn] = useState(0);
   const today = dayjs().format('YYYY-MM-DD');
 
   useEffect(() => { loadData(); }, []);
@@ -20,7 +42,12 @@ export default function Dashboard() {
     const plan = await db.dailyPlans.where('date').equals(today).first();
     setTodayPlan(plan || null);
 
-    const allPlans = await db.dailyPlans.toArray();
+    const [allPlans, foods, workout] = await Promise.all([
+      db.dailyPlans.toArray(),
+      db.foodEntries.where('date').equals(today).toArray(),
+      db.workoutLogs.where('date').equals(today).first(),
+    ]);
+
     let completed = 0, total = 0;
     allPlans.forEach((dp: DailyPlan) => {
       dp.tasks.forEach((t: {status: string}) => {
@@ -39,11 +66,26 @@ export default function Dashboard() {
       else if (dates[i] < today) break;
     }
     setStats({ completed, total, rate, streak });
+
+    const ft = foods.reduce((acc, e) => ({
+      calories: acc.calories + e.calories,
+      protein: acc.protein + e.protein,
+      carbs: acc.carbs + e.carbs,
+      fat: acc.fat + e.fat,
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    setFoodTotal(ft);
+
+    if (workout) {
+      setWorkoutBurn(calcWorkoutBurn(workout, p.weight));
+    } else {
+      setWorkoutBurn(0);
+    }
   }
 
   const scheduleToday = STUDY_SCHEDULE.find(s => s.date === today);
   const todayDone = todayPlan?.tasks.filter(t => t.status === 'completed').length || 0;
   const todayTotal = todayPlan?.tasks.length || 0;
+  const macros = profile ? calculateMacros(profile) : { calories: 1900, protein: 154, carbs: 156, fat: 63 };
 
   const categoryLabel = (cat: string) => cat === 'english' ? '英语' : cat === 'dental' ? '专业课' : '其它';
   const categoryColor = (cat: string) => cat === 'english' ? 'text-blue-600 bg-blue-50' : cat === 'dental' ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50';
@@ -88,6 +130,18 @@ export default function Dashboard() {
                   <span>{todayDone}/{todayTotal}</span>
                 </div>
                 <Progress value={todayDone} max={todayTotal || 1} />
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">今日饮食</p>
+                  <p className="text-sm font-semibold text-blue-600">{foodTotal.calories} / {macros.calories} kcal</p>
+                  <p className="text-[10px] text-muted-foreground">P:{foodTotal.protein.toFixed(1)}g C:{foodTotal.carbs.toFixed(1)}g F:{foodTotal.fat.toFixed(1)}g</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">今日训练消耗</p>
+                  <p className="text-sm font-semibold text-orange-600">{workoutBurn} kcal</p>
+                  <p className="text-[10px] text-muted-foreground">{workoutBurn > 0 ? `缺口: ${macros.calories - foodTotal.calories + workoutBurn} kcal` : '无训练记录'}</p>
+                </div>
               </div>
             </>
           ) : (

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { useAI } from '../../hooks/useAI';
 import { db, getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord } from '../../lib/db';
+import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
 import { CheckSquare } from 'lucide-react';
 
@@ -51,6 +52,25 @@ export default function AIAssistant() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversations]);
 
+  function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
+    let total = 0;
+    for (const ex of w.exercises) {
+      if (ex.kind === 'cardio' && ex.cardioParams) {
+        const speed = ex.cardioParams.speed || 0;
+        const incline = ex.cardioParams.incline || 0;
+        const duration = ex.cardioParams.duration || 0;
+        let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
+        met += incline * 0.5;
+        total += met * weightKg * (duration / 60);
+      } else if (ex.kind === 'strength') {
+        const strengthCount = w.exercises.filter(e => e.kind === 'strength').length || 1;
+        const share = (w.duration || 60) / strengthCount;
+        total += 0.1 * weightKg * share;
+      }
+    }
+    return Math.round(total);
+  }
+
   async function gatherContext(): Promise<string> {
     const today = dayjs().format('YYYY-MM-DD');
     const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
@@ -69,6 +89,7 @@ export default function AIAssistant() {
 
     const macros = calculateMacros(profile);
     const foodTotal = foodEntries.reduce((acc: {c: number, p: number, f: number, cb: number}, e: {calories: number, protein: number, fat: number, carbs: number}) => ({ c: acc.c + e.calories, p: acc.p + e.protein, f: acc.f + e.fat, cb: acc.cb + e.carbs }), { c: 0, p: 0, f: 0, cb: 0 });
+    const workoutBurn = workoutLogs ? calcWorkoutBurn(workoutLogs, profile.weight) : 0;
 
     return `
 用户档案：${profile.gender === 'male' ? '男' : '女'}，${profile.age}岁，${profile.height}cm，${profile.weight}kg
@@ -94,7 +115,7 @@ ${yesterdayPlan ? yesterdayPlan.tasks.map((t: Task) => `- ${t.text}: ${t.status 
 - 碳水：${foodTotal.cb.toFixed(1)}/${macros.carbs}g
 - 脂肪：${foodTotal.f.toFixed(1)}/${macros.fat}g
 
-今日训练：${workoutLogs ? `${workoutLogs.type}，时长${workoutLogs.duration}min` : '无记录'}
+今日训练：${workoutLogs ? `${workoutLogs.type}，时长${workoutLogs.duration}min，消耗约${workoutBurn}kcal` : '无记录'}
 
 体重记录（最近7天）：
 ${weightRecords.map((w: WeightRecord) => `- ${w.date}: ${w.weight}kg`).join('\n')}

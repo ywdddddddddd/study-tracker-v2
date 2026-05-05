@@ -3,10 +3,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { WORKOUT_PRESETS } from '../../data/presets';
-import { db } from '../../lib/db';
+import { db, getOrCreateProfile } from '../../lib/db';
 import type { WorkoutLog, ExerciseLog } from '../../types';
 import dayjs from 'dayjs';
-import { ChevronDown, ChevronUp, X, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Plus, Flame } from 'lucide-react';
+
+function calculateBurn(log: WorkoutLog, weightKg: number): number {
+  let total = 0;
+  for (const ex of log.exercises) {
+    if (ex.kind === 'cardio' && ex.cardioParams) {
+      const speed = ex.cardioParams.speed || 0;
+      const incline = ex.cardioParams.incline || 0;
+      const duration = ex.cardioParams.duration || 0;
+      // MET estimation: running ~1 MET per km/h, walking ~0.5 MET per km/h + 2 baseline
+      let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
+      met += incline * 0.5; // incline bonus
+      total += met * weightKg * (duration / 60);
+    } else if (ex.kind === 'strength') {
+      // Rough estimate: 0.1 kcal per kg per minute of strength work
+      // Use log.duration as proxy, divide evenly across strength exercises
+      const strengthCount = log.exercises.filter(e => e.kind === 'strength').length || 1;
+      const share = (log.duration || 60) / strengthCount;
+      total += 0.1 * weightKg * share;
+    }
+  }
+  return Math.round(total);
+}
 
 export default function FitnessPage() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -14,10 +36,15 @@ export default function FitnessPage() {
   const [selectedPreset, setSelectedPreset] = useState('push');
   const [saved, setSaved] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+  const [weight, setWeight] = useState(84);
 
-  useEffect(() => { loadLog(); }, [date]);
+  useEffect(() => {
+    loadData();
+  }, [date]);
 
-  async function loadLog() {
+  async function loadData() {
+    const profile = await getOrCreateProfile();
+    setWeight(profile.weight);
     const existing = await db.workoutLogs.where('date').equals(date).first();
     if (existing) {
       setLog(existing);
@@ -131,8 +158,11 @@ export default function FitnessPage() {
       {log && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">
-              {WORKOUT_PRESETS.find(p => p.type === log.type)?.name || '自定义训练'}
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>{WORKOUT_PRESETS.find(p => p.type === log.type)?.name || '自定义训练'}</span>
+              <span className="text-sm font-normal text-orange-600 flex items-center gap-1">
+                <Flame className="w-4 h-4" /> 预计消耗 {calculateBurn(log, weight)} kcal
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

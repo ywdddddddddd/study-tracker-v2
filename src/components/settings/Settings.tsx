@@ -241,6 +241,23 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">数据可靠性说明</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>本应用使用浏览器 <strong>IndexedDB</strong> 本地存储数据，数据保存在当前设备的浏览器中。</p>
+          <p><strong>数据不会自动同步到云端</strong>，换设备或清除浏览器数据会导致丢失。</p>
+          <p><strong>可能丢失的场景：</strong></p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>清除浏览器缓存/Cookie/网站数据</li>
+            <li>使用隐私模式/无痕浏览（关闭后数据自动清除）</li>
+            <li>浏览器卸载或重装</li>
+            <li>系统还原或重装</li>
+            <li>磁盘空间不足时浏览器自动清理</li>
+          </ul>
+          <p className="text-amber-600 font-medium">⚠️ 建议每周点击「导出备份」保存 JSON 文件到本地或网盘。</p>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="pb-3"><CardTitle className="text-lg">数据管理</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2 flex-wrap">

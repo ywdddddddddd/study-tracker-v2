@@ -54,7 +54,7 @@ export default function NutritionPage() {
     const food = FOOD_DATABASE.find(f => f.name === name);
     if (!food) return;
     setSelectedFood(name);
-    const ratio = newEntry.weight / 100;
+    const ratio = newEntry.weight / food.gramsPerUnit;
     setNewEntry({
       ...newEntry,
       name: food.name,
@@ -72,7 +72,7 @@ export default function NutritionPage() {
       setNewEntry({ ...newEntry, weight: w });
       return;
     }
-    const ratio = w / 100;
+    const ratio = w / food.gramsPerUnit;
     setNewEntry({
       ...newEntry,
       weight: w,
