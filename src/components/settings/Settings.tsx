@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Progress } from '../ui/progress';
-import { db, getOrCreateProfile, updateProfile, calculateBMR, calculateTDEE, calculateTargetCalories, calculateMacros, type Profile, type WeightRecord, type SleepRecord } from '../../lib/db';
+import { getOrCreateProfile, updateProfile, calculateBMR, calculateTDEE, calculateTargetCalories, calculateMacros, type Profile, type WeightRecord, type SleepRecord, getWeightRecords, addWeightRecord, getSleepRecords, addSleepRecord, exportAllData, importAllData, clearAllData } from '../../lib/db';
 import dayjs from 'dayjs';
 
 export default function SettingsPage() {
@@ -19,9 +19,9 @@ export default function SettingsPage() {
   async function loadData() {
     const p = await getOrCreateProfile();
     setProfile(p);
-    const wr = await db.weightRecords.orderBy('date').reverse().toArray();
+    const wr = await getWeightRecords('desc');
     setWeightRecords(wr.reverse());
-    const sr = await db.sleepRecords.orderBy('date').reverse().limit(14).toArray();
+    const sr = await getSleepRecords(14);
     setSleepRecords(sr.reverse());
   }
 
@@ -34,7 +34,7 @@ export default function SettingsPage() {
 
   const addWeight = async () => {
     if (!newWeight) return;
-    await db.weightRecords.add({ date: dayjs().format('YYYY-MM-DD'), weight: parseFloat(newWeight) });
+    await addWeightRecord({ date: dayjs().format('YYYY-MM-DD'), weight: parseFloat(newWeight) });
     if (profile) await updateProfile({ ...profile, weight: parseFloat(newWeight) });
     setNewWeight('');
     await loadData();
@@ -45,7 +45,7 @@ export default function SettingsPage() {
     const wake = dayjs(`2024-01-02 ${newSleep.wakeTime}`);
     const diff = wake.diff(bed, 'minute');
     const duration = diff > 0 ? diff : diff + 24 * 60;
-    await db.sleepRecords.add({
+    await addSleepRecord({
       date: dayjs().format('YYYY-MM-DD'),
       bedTime: newSleep.bedTime,
       wakeTime: newSleep.wakeTime,
@@ -58,17 +58,7 @@ export default function SettingsPage() {
   };
 
   const exportData = async () => {
-    const data = {
-      profile: await db.profile.toArray(),
-      weightRecords: await db.weightRecords.toArray(),
-      dailyPlans: await db.dailyPlans.toArray(),
-      weeklyReviews: await db.weeklyReviews.toArray(),
-      foodEntries: await db.foodEntries.toArray(),
-      workoutLogs: await db.workoutLogs.toArray(),
-      aiConversations: await db.aiConversations.toArray(),
-      sleepRecords: await db.sleepRecords.toArray(),
-      exportedAt: new Date().toISOString(),
-    };
+    const data = await exportAllData();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -84,14 +74,7 @@ export default function SettingsPage() {
     const text = await file.text();
     try {
       const data = JSON.parse(text);
-      if (data.profile) await db.profile.bulkPut(data.profile);
-      if (data.weightRecords) await db.weightRecords.bulkPut(data.weightRecords);
-      if (data.dailyPlans) await db.dailyPlans.bulkPut(data.dailyPlans);
-      if (data.weeklyReviews) await db.weeklyReviews.bulkPut(data.weeklyReviews);
-      if (data.foodEntries) await db.foodEntries.bulkPut(data.foodEntries);
-      if (data.workoutLogs) await db.workoutLogs.bulkPut(data.workoutLogs);
-      if (data.aiConversations) await db.aiConversations.bulkPut(data.aiConversations);
-      if (data.sleepRecords) await db.sleepRecords.bulkPut(data.sleepRecords);
+      await importAllData(data);
       alert('✅ 数据导入成功');
       await loadData();
     } catch {
@@ -102,7 +85,7 @@ export default function SettingsPage() {
 
   const clearAll = async () => {
     if (!confirm('⚠️ 确定要清空所有数据吗？此操作不可恢复！')) return;
-    await db.delete();
+    await clearAllData();
     window.location.reload();
   };
 
@@ -243,17 +226,15 @@ export default function SettingsPage() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-lg">数据可靠性说明</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>本应用使用浏览器 <strong>IndexedDB</strong> 本地存储数据，数据保存在当前设备的浏览器中。</p>
-          <p><strong>数据不会自动同步到云端</strong>，换设备或清除浏览器数据会导致丢失。</p>
+          <p>本应用数据存储在 <strong>Supabase PostgreSQL 云端数据库</strong> 中，刷新页面或更换设备不会丢失。</p>
+          <p><strong>数据可靠性：</strong>Supabase 提供自动备份和 500MB 免费额度，个人使用足够。</p>
           <p><strong>可能丢失的场景：</strong></p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>清除浏览器缓存/Cookie/网站数据</li>
-            <li>使用隐私模式/无痕浏览（关闭后数据自动清除）</li>
-            <li>浏览器卸载或重装</li>
-            <li>系统还原或重装</li>
-            <li>磁盘空间不足时浏览器自动清理</li>
+            <li>Supabase 项目被删除或暂停（免费项目 90 天无活动会暂停）</li>
+            <li>数据库表被手动清空</li>
+            <li>网络故障导致同步失败</li>
           </ul>
-          <p className="text-amber-600 font-medium">⚠️ 建议每周点击「导出备份」保存 JSON 文件到本地或网盘。</p>
+          <p className="text-amber-600 font-medium">⚠️ 建议每月点击「导出备份」保存 JSON 文件到本地作为额外保险。</p>
         </CardContent>
       </Card>
 

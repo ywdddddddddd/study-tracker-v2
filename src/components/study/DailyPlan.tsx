@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Progress } from '../ui/progress';
-import { db, type DailyPlan, type Task } from '../../lib/db';
+import { type DailyPlan, type Task, getDailyPlan, saveDailyPlan, saveCustomSchedule, getCustomSchedules, deleteCustomSchedule } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import { useTimer, formatDuration } from '../../hooks/useTimer';
 import dayjs from 'dayjs';
@@ -83,10 +83,26 @@ export default function DailyPlanPage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ english: false, dental: false, other: false });
   const [timerOpen, setTimerOpen] = useState(false);
   const [timerTaskIdx, setTimerTaskIdx] = useState<number>(-1);
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
+  const [customSchedules, setCustomSchedules] = useState<{ date: string; weekday: string; gym: string; tasks: { text: string; category: 'english' | 'dental' | 'other' }[] }[]>([]);
+  const [editingSchedule, setEditingSchedule] = useState<{ date: string; weekday: string; gym: string; tasks: { text: string; category: 'english' | 'dental' | 'other' }[] } | null>(null);
+
+  const loadCustomSchedules = useCallback(async () => {
+    const cs = await getCustomSchedules();
+    setCustomSchedules(cs);
+  }, []);
+
+  useEffect(() => { loadCustomSchedules(); }, [loadCustomSchedules]);
+
+  const getEffectiveSchedule = useCallback((d: string) => {
+    const custom = customSchedules.find(s => s.date === d);
+    if (custom) return custom;
+    return STUDY_SCHEDULE.find(s => s.date === d);
+  }, [customSchedules]);
 
   const loadPlan = useCallback(async () => {
-    const existing = await db.dailyPlans.where('date').equals(date).first();
-    const schedule = STUDY_SCHEDULE.find(s => s.date === date);
+    const existing = await getDailyPlan(date);
+    const schedule = getEffectiveSchedule(date);
     if (existing) {
       setPlan(existing);
     } else if (schedule) {
@@ -103,7 +119,7 @@ export default function DailyPlanPage() {
     } else {
       setPlan({ date, tasks: [], conquered: '', difficulty: '', adjust: '', completion: '', totalFocusMinutes: 0 });
     }
-  }, [date]);
+  }, [date, getEffectiveSchedule]);
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
 
@@ -117,7 +133,7 @@ export default function DailyPlanPage() {
 
   const save = async () => {
     if (!plan) return;
-    await db.dailyPlans.put(plan);
+    await saveDailyPlan(plan);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -176,8 +192,92 @@ export default function DailyPlanPage() {
         <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-auto" />
         <Button variant="outline" size="sm" onClick={() => setDate(dayjs().format('YYYY-MM-DD'))}>今天</Button>
         <Button variant="outline" size="sm" onClick={() => setDate(d => dayjs(d).add(1, 'day').format('YYYY-MM-DD'))}><ChevronRight className="w-4 h-4" /></Button>
+        <Button variant="outline" size="sm" onClick={() => { setEditingSchedule(null); setScheduleEditorOpen(true); }}>📅 编辑计划库</Button>
         <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
       </div>
+
+      {scheduleEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setScheduleEditorOpen(false); setEditingSchedule(null); }}>
+          <div className="bg-background rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">管理学习计划预设</h3>
+              <Button variant="ghost" size="sm" onClick={() => { setScheduleEditorOpen(false); setEditingSchedule(null); }}>✕</Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">自定义计划会覆盖内置同名日期计划。</p>
+
+            {editingSchedule ? (
+              <div className="space-y-3 border rounded-lg p-4">
+                <h4 className="font-medium">编辑 {editingSchedule.date} ({editingSchedule.weekday})</h4>
+                <div className="flex gap-2">
+                  <select value={editingSchedule.gym} onChange={e => setEditingSchedule({ ...editingSchedule, gym: e.target.value })} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="推">推</option>
+                    <option value="拉">拉</option>
+                    <option value="腿">腿</option>
+                    <option value="休">休</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  {editingSchedule.tasks.map((t, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <Input value={t.text} onChange={e => {
+                        const tasks = [...editingSchedule.tasks];
+                        tasks[i] = { ...tasks[i], text: e.target.value };
+                        setEditingSchedule({ ...editingSchedule, tasks });
+                      }} className="flex-1" />
+                      <select value={t.category} onChange={e => {
+                        const tasks = [...editingSchedule.tasks];
+                        tasks[i] = { ...tasks[i], category: e.target.value as any };
+                        setEditingSchedule({ ...editingSchedule, tasks });
+                      }} className="h-10 rounded-md border border-input bg-background px-2 text-sm w-24">
+                        <option value="english">英语</option>
+                        <option value="dental">专业课</option>
+                        <option value="other">其它</option>
+                      </select>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => {
+                        const tasks = editingSchedule.tasks.filter((_, idx) => idx !== i);
+                        setEditingSchedule({ ...editingSchedule, tasks });
+                      }}>✕</Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => setEditingSchedule({ ...editingSchedule, tasks: [...editingSchedule.tasks, { text: '', category: 'other' }] })}>+ 添加任务</Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={async () => { await saveCustomSchedule(editingSchedule); await loadCustomSchedules(); setEditingSchedule(null); }}>💾 保存</Button>
+                  <Button variant="outline" onClick={() => setEditingSchedule(null)}>取消</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {STUDY_SCHEDULE.map(s => {
+                  const isCustom = customSchedules.some(cs => cs.date === s.date);
+                  return (
+                    <div key={s.date} className="flex items-center justify-between text-sm border-b py-2">
+                      <div className="flex-1">
+                        <span className="font-medium">{s.date} ({s.weekday})</span>
+                        <span className="text-muted-foreground ml-2">健身: {s.gym} | {s.tasks.length}项任务</span>
+                        {isCustom && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1 rounded">已自定义</span>}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => {
+                          const custom = customSchedules.find(cs => cs.date === s.date);
+                          setEditingSchedule(custom ? { ...custom } : { ...s });
+                        }}>编辑</Button>
+                        {isCustom && (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={async () => {
+                            if (!confirm(`确定恢复 ${s.date} 为默认计划？`)) return;
+                            await deleteCustomSchedule(s.date);
+                            await loadCustomSchedules();
+                          }}>恢复默认</Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

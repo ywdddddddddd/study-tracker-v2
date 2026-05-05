@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { db, type WeeklyReview } from '../../lib/db';
+import { type WeeklyReview, getWeeklyReview, saveWeeklyReview } from '../../lib/db';
 import dayjs from 'dayjs';
 
 export default function WeeklyReviewPage() {
@@ -12,7 +12,7 @@ export default function WeeklyReviewPage() {
   const [saved, setSaved] = useState(false);
 
   const loadReview = useCallback(async () => {
-    const existing = await db.weeklyReviews.where('weekStart').equals(weekStart).first();
+    const existing = await getWeeklyReview(weekStart);
     if (existing) {
       setReview(existing);
     } else {
@@ -34,7 +34,7 @@ export default function WeeklyReviewPage() {
 
   const save = async () => {
     if (!review) return;
-    await db.weeklyReviews.put(review);
+    await saveWeeklyReview(review);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { db, getOrCreateProfile } from '../../lib/db';
+import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange } from '../../lib/db';
 import type { DailyPlan, WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
 
@@ -39,9 +39,9 @@ export default function AnalyticsPage() {
     const end = dayjs(start).add(6, 'day').format('YYYY-MM-DD');
     const [profile, plansData, foods, workouts] = await Promise.all([
       getOrCreateProfile(),
-      db.dailyPlans.filter(p => p.date >= start && p.date <= end).toArray(),
-      db.foodEntries.filter(f => f.date >= start && f.date <= end).toArray(),
-      db.workoutLogs.filter(w => w.date >= start && w.date <= end).toArray(),
+      getDailyPlansInRange(start, end),
+      getFoodEntriesInRange(start, end),
+      getWorkoutLogsInRange(start, end),
     ]);
     setWeight(profile.weight);
     setPlans(plansData);

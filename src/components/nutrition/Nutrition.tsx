@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-// import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { FOOD_DATABASE } from '../../data/presets';
-import { db, type FoodEntry, getOrCreateProfile, calculateMacros } from '../../lib/db';
+import { type FoodEntry, getOrCreateProfile, calculateMacros, getFoodEntries, addFoodEntry, deleteFoodEntry, getCustomFoods, saveCustomFood, deleteCustomFood } from '../../lib/db';
 import dayjs from 'dayjs';
 
 export default function NutritionPage() {
@@ -14,18 +13,35 @@ export default function NutritionPage() {
   const [targets, setTargets] = useState({ calories: 1900, protein: 154, carbs: 156, fat: 63 });
   const [newEntry, setNewEntry] = useState({ meal: 'breakfast' as const, name: '', weight: 100, calories: 0, protein: 0, carbs: 0, fat: 0, isCustom: false });
   const [selectedFood, setSelectedFood] = useState('');
+  const [customFoods, setCustomFoods] = useState<{ name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string }[]>([]);
+  const [foodEditorOpen, setFoodEditorOpen] = useState(false);
+  const [editingFood, setEditingFood] = useState<{ name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string } | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, [date]);
+  useEffect(() => { loadData(); }, [date]);
+  useEffect(() => { loadCustomFoods(); }, []);
 
   async function loadData() {
-    const data = await db.foodEntries.where('date').equals(date).toArray();
+    const data = await getFoodEntries(date);
     setEntries(data);
     const profile = await getOrCreateProfile();
     const macros = calculateMacros(profile);
     setTargets(macros);
   }
+
+  async function loadCustomFoods() {
+    const cf = await getCustomFoods();
+    setCustomFoods(cf);
+  }
+
+  const allFoods: { name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string }[] = [...FOOD_DATABASE];
+  // Merge custom foods, overriding built-in by name
+  const customNames = new Set(customFoods.map(f => f.name));
+  for (const cf of customFoods) {
+    const idx = allFoods.findIndex(f => f.name === cf.name);
+    if (idx >= 0) allFoods[idx] = cf;
+    else allFoods.push(cf);
+  }
+  allFoods.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
 
   const addEntry = async () => {
     const entry: FoodEntry = {
@@ -39,19 +55,19 @@ export default function NutritionPage() {
       fat: newEntry.fat,
       isCustom: newEntry.isCustom,
     };
-    await db.foodEntries.add(entry);
+    await addFoodEntry(entry);
     await loadData();
     setNewEntry({ meal: newEntry.meal, name: '', weight: 100, calories: 0, protein: 0, carbs: 0, fat: 0, isCustom: false });
     setSelectedFood('');
   };
 
   const removeEntry = async (id: number) => {
-    await db.foodEntries.delete(id);
+    await deleteFoodEntry(id);
     await loadData();
   };
 
   const selectPresetFood = (name: string) => {
-    const food = FOOD_DATABASE.find(f => f.name === name);
+    const food = allFoods.find(f => f.name === name);
     if (!food) return;
     setSelectedFood(name);
     const ratio = newEntry.weight / food.gramsPerUnit;
@@ -67,7 +83,7 @@ export default function NutritionPage() {
   };
 
   const updateWeight = (w: number) => {
-    const food = FOOD_DATABASE.find(f => f.name === selectedFood);
+    const food = allFoods.find(f => f.name === selectedFood);
     if (!food) {
       setNewEntry({ ...newEntry, weight: w });
       return;
@@ -81,6 +97,19 @@ export default function NutritionPage() {
       carbs: Math.round(food.carbs * ratio * 10) / 10,
       fat: Math.round(food.fat * ratio * 10) / 10,
     });
+  };
+
+  const saveFoodToLibrary = async () => {
+    if (!editingFood) return;
+    await saveCustomFood(editingFood);
+    await loadCustomFoods();
+    setEditingFood(null);
+  };
+
+  const removeFoodFromLibrary = async (name: string) => {
+    if (!confirm(`确定从食物库删除「${name}」？`)) return;
+    await deleteCustomFood(name);
+    await loadCustomFoods();
   };
 
   const totals = entries.reduce((acc, e) => ({
@@ -97,7 +126,67 @@ export default function NutritionPage() {
     <div className="space-y-6 animate-in">
       <div className="flex items-center gap-2">
         <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-auto" />
+        <Button variant="outline" size="sm" onClick={() => setFoodEditorOpen(true)}>🍱 管理食物库</Button>
       </div>
+
+      {foodEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setFoodEditorOpen(false); setEditingFood(null); }}>
+          <div className="bg-background rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">管理食物库</h3>
+              <Button variant="ghost" size="sm" onClick={() => { setFoodEditorOpen(false); setEditingFood(null); }}>✕</Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">自定义食物会覆盖内置同名食物。删除仅移除自定义版本。</p>
+
+            {editingFood ? (
+              <div className="space-y-3 border rounded-lg p-4">
+                <h4 className="font-medium">{editingFood.name ? '编辑' : '新增'}食物</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="名称" value={editingFood.name} onChange={e => setEditingFood({ ...editingFood, name: e.target.value })} />
+                  <Input placeholder="单位(如: 100g, 1个)" value={editingFood.unit} onChange={e => setEditingFood({ ...editingFood, unit: e.target.value })} />
+                  <Input type="number" placeholder="每单位克数" value={editingFood.gramsPerUnit || ''} onChange={e => setEditingFood({ ...editingFood, gramsPerUnit: parseFloat(e.target.value) || 0 })} />
+                  <Input type="number" placeholder="热量(每单位)" value={editingFood.calories || ''} onChange={e => setEditingFood({ ...editingFood, calories: parseFloat(e.target.value) || 0 })} />
+                  <Input type="number" placeholder="蛋白质" value={editingFood.protein || ''} onChange={e => setEditingFood({ ...editingFood, protein: parseFloat(e.target.value) || 0 })} />
+                  <Input type="number" placeholder="碳水" value={editingFood.carbs || ''} onChange={e => setEditingFood({ ...editingFood, carbs: parseFloat(e.target.value) || 0 })} />
+                  <Input type="number" placeholder="脂肪" value={editingFood.fat || ''} onChange={e => setEditingFood({ ...editingFood, fat: parseFloat(e.target.value) || 0 })} />
+                  <select value={editingFood.category} onChange={e => setEditingFood({ ...editingFood, category: e.target.value as any })} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="carb">碳水</option>
+                    <option value="protein">蛋白质</option>
+                    <option value="veg">蔬菜</option>
+                    <option value="fat">脂肪</option>
+                    <option value="other">其它</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={saveFoodToLibrary}>💾 保存</Button>
+                  <Button variant="outline" onClick={() => setEditingFood(null)}>取消</Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" className="mb-3" onClick={() => setEditingFood({ name: '', unit: '100g', gramsPerUnit: 100, calories: 0, protein: 0, carbs: 0, fat: 0, category: 'other' })}>+ 添加新食物</Button>
+                <div className="space-y-2">
+                  {allFoods.map(food => (
+                    <div key={food.name} className="flex items-center justify-between text-sm border-b py-2">
+                      <div className="flex-1">
+                        <span className="font-medium">{food.name}</span>
+                        <span className="text-muted-foreground ml-2">{food.unit} | {food.calories}kcal | P:{food.protein} C:{food.carbs} F:{food.fat}</span>
+                        {customNames.has(food.name) && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1 rounded">自定义</span>}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingFood({ ...food })}>编辑</Button>
+                        {customNames.has(food.name) && (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => removeFoodFromLibrary(food.name)}>删除</Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-lg">今日摄入概览</CardTitle></CardHeader>
@@ -132,7 +221,7 @@ export default function NutritionPage() {
             </select>
             <select value={selectedFood} onChange={e => selectPresetFood(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm flex-1 min-w-[150px]">
               <option value="">选择食物 (或自定义)</option>
-              {FOOD_DATABASE.map(f => <option key={f.name} value={f.name}>{f.name} ({f.unit})</option>)}
+              {allFoods.map(f => <option key={f.name} value={f.name}>{f.name} ({f.unit})</option>)}
             </select>
             <Input type="number" placeholder="重量(g)" className="w-24" value={newEntry.weight || ''} onChange={e => updateWeight(parseFloat(e.target.value) || 0)} />
           </div>

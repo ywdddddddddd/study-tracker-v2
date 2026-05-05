@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { useAI } from '../../hooks/useAI';
-import { db, getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord } from '../../lib/db';
+import { getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
 import { CheckSquare } from 'lucide-react';
@@ -78,13 +78,13 @@ export default function AIAssistant() {
 
     const [profile, todayPlan, yesterdayPlan, weekPlans, foodEntries, workoutLogs, weightRecords, sleepRecords] = await Promise.all([
       getOrCreateProfile(),
-      db.dailyPlans.where('date').equals(today).first(),
-      db.dailyPlans.where('date').equals(yesterday).first(),
-      db.dailyPlans.filter(p => p.date >= weekStart).toArray(),
-      db.foodEntries.where('date').equals(today).toArray(),
-      db.workoutLogs.where('date').equals(today).first(),
-      db.weightRecords.orderBy('date').reverse().limit(7).toArray(),
-      db.sleepRecords.orderBy('date').reverse().limit(7).toArray(),
+      getDailyPlan(today),
+      getDailyPlan(yesterday),
+      getDailyPlansInRange(weekStart, today),
+      getFoodEntries(today),
+      getWorkoutLog(today),
+      getWeightRecords('desc').then(arr => arr.slice(0, 7)),
+      getSleepRecords(7).then(arr => arr.reverse()),
     ]);
 
     const macros = calculateMacros(profile);
@@ -172,13 +172,13 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
 
   async function confirmAdopt() {
     const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
-    const existing = await db.dailyPlans.where('date').equals(tomorrow).first();
+    const existing = await getDailyPlan(tomorrow);
     const toAdopt = suggestedTasks.filter((_, i) => selectedTasks.has(i));
     if (existing) {
       const merged = [...existing.tasks, ...toAdopt];
-      await db.dailyPlans.put({ ...existing, tasks: merged });
+      await saveDailyPlan({ ...existing, tasks: merged });
     } else {
-      await db.dailyPlans.put({
+      await saveDailyPlan({
         date: tomorrow,
         tasks: toAdopt,
         conquered: '',

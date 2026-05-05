@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { StatCard } from '../ui/shared';
 import { Progress } from '../ui/progress';
-import { db, type DailyPlan, type Profile, getOrCreateProfile, calculateMacros } from '../../lib/db';
+import { type DailyPlan, type Profile, getOrCreateProfile, calculateMacros, getDailyPlan, getAllDailyPlans, getFoodEntries, getWorkoutLog } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
@@ -39,13 +39,13 @@ export default function Dashboard() {
   async function loadData() {
     const p = await getOrCreateProfile();
     setProfile(p);
-    const plan = await db.dailyPlans.where('date').equals(today).first();
+    const plan = await getDailyPlan(today);
     setTodayPlan(plan || null);
 
     const [allPlans, foods, workout] = await Promise.all([
-      db.dailyPlans.toArray(),
-      db.foodEntries.where('date').equals(today).toArray(),
-      db.workoutLogs.where('date').equals(today).first(),
+      getAllDailyPlans(),
+      getFoodEntries(today),
+      getWorkoutLog(today),
     ]);
 
     let completed = 0, total = 0;

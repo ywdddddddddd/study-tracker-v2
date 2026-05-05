@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { WORKOUT_PRESETS } from '../../data/presets';
-import { db, getOrCreateProfile } from '../../lib/db';
+import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog } from '../../lib/db';
 import type { WorkoutLog, ExerciseLog } from '../../types';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronUp, X, Plus, Flame } from 'lucide-react';
@@ -15,16 +15,23 @@ function calculateBurn(log: WorkoutLog, weightKg: number): number {
       const speed = ex.cardioParams.speed || 0;
       const incline = ex.cardioParams.incline || 0;
       const duration = ex.cardioParams.duration || 0;
-      // MET estimation: running ~1 MET per km/h, walking ~0.5 MET per km/h + 2 baseline
       let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
-      met += incline * 0.5; // incline bonus
+      met += incline * 0.5;
       total += met * weightKg * (duration / 60);
     } else if (ex.kind === 'strength') {
-      // Rough estimate: 0.1 kcal per kg per minute of strength work
-      // Use log.duration as proxy, divide evenly across strength exercises
-      const strengthCount = log.exercises.filter(e => e.kind === 'strength').length || 1;
-      const share = (log.duration || 60) / strengthCount;
-      total += 0.1 * weightKg * share;
+      // Estimate burn from actual volume: 0.05 kcal per kg lifted per rep
+      // This makes burn responsive to weight/reps changes
+      for (const set of ex.sets) {
+        if (set.weight > 0 && set.reps > 0) {
+          total += 0.05 * set.weight * set.reps;
+        }
+      }
+      // Fallback: if no sets recorded, use duration-based estimate
+      if (total === 0) {
+        const strengthCount = log.exercises.filter(e => e.kind === 'strength').length || 1;
+        const share = (log.duration || 60) / strengthCount;
+        total += 0.1 * weightKg * share;
+      }
     }
   }
   return Math.round(total);
@@ -45,7 +52,7 @@ export default function FitnessPage() {
   async function loadData() {
     const profile = await getOrCreateProfile();
     setWeight(profile.weight);
-    const existing = await db.workoutLogs.where('date').equals(date).first();
+    const existing = await getWorkoutLog(date);
     if (existing) {
       setLog(existing);
       setSelectedPreset(existing.type);
@@ -136,7 +143,7 @@ export default function FitnessPage() {
 
   const save = async () => {
     if (!log) return;
-    await db.workoutLogs.put(log);
+    await saveWorkoutLog(log);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -177,11 +184,19 @@ export default function FitnessPage() {
                         onChange={e => updateExerciseName(exIdx, e.target.value)}
                         className="h-8 font-medium bg-transparent border-0 px-0 focus-visible:ring-0"
                       />
-                      <button
-                        onClick={() => toggleKind(exIdx)}
-                        className={`text-xs px-2 py-0.5 rounded ${ex.kind === 'strength' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}
-                      >
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${ex.kind === 'strength' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                         {ex.kind === 'strength' ? '力量' : '有氧'}
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`将「${ex.name}」切换为${ex.kind === 'strength' ? '有氧' : '力量'}类型？`)) {
+                            toggleKind(exIdx);
+                          }
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground underline ml-1"
+                        title="切换训练类型"
+                      >
+                        切换
                       </button>
                     </div>
                     <div className="flex items-center gap-1">
