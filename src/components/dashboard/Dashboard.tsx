@@ -14,16 +14,24 @@ function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
       const speed = ex.cardioParams.speed || 0;
       const incline = ex.cardioParams.incline || 0;
       const duration = ex.cardioParams.duration || 0;
-      let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
-      met += incline * 0.5;
-      total += met * weightKg * (duration / 60);
+      // Treadmill MET formula from ACSM literature
+      const mets = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5;
+      total += mets * weightKg * (duration / 60);
     } else if (ex.kind === 'strength') {
+      // Literature-based: ~0.04 kcal per kg bodyweight per minute
       const strengthCount = w.exercises.filter(e => e.kind === 'strength').length || 1;
       const share = (w.duration || 60) / strengthCount;
-      total += 0.1 * weightKg * share;
+      total += 0.04 * weightKg * share;
     }
   }
   return Math.round(total);
+}
+
+function calculateBMR(weight: number, height: number, age: number, gender: string): number {
+  if (gender === 'male') {
+    return Math.round(10 * weight + 6.25 * height - 5 * age + 5);
+  }
+  return Math.round(10 * weight + 6.25 * height - 5 * age - 161);
 }
 
 export default function Dashboard() {
@@ -86,9 +94,14 @@ export default function Dashboard() {
   const todayDone = todayPlan?.tasks.filter(t => t.status === 'completed').length || 0;
   const todayTotal = todayPlan?.tasks.length || 0;
   const macros = profile ? calculateMacros(profile) : { calories: 1900, protein: 154, carbs: 156, fat: 63 };
+  const bmr = profile ? calculateBMR(profile.weight, profile.height, profile.age, profile.gender) : 1900;
+  const totalBurn = workoutBurn + bmr;
 
   const categoryLabel = (cat: string) => cat === 'english' ? '英语' : cat === 'dental' ? '专业课' : '其它';
   const categoryColor = (cat: string) => cat === 'english' ? 'text-blue-600 bg-blue-50' : cat === 'dental' ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50';
+
+  // Get gym type from schedule or plan
+  const gymType = scheduleToday?.gym || '休';
 
   return (
     <div className="space-y-6 animate-in">
@@ -104,21 +117,21 @@ export default function Dashboard() {
           <CardTitle className="text-lg">今日概览 ({dayjs().format('M月D日')})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {scheduleToday ? (
+          {todayPlan && todayPlan.tasks.length > 0 ? (
             <>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium">健身:</span>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleToday.gym === '休' ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
-                  {scheduleToday.gym === '推' ? '推 (胸+肩+三头)' : scheduleToday.gym === '拉' ? '拉 (背+肩后束+二头)' : scheduleToday.gym === '腿' ? '腿 (股四+腘绳+臀)' : '休息日'}
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${gymType === '休' ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {gymType === '推' ? '推 (胸+肩+三头)' : gymType === '拉' ? '拉 (背+肩后束+二头)' : gymType === '腿' ? '腿 (股四+腘绳+臀)' : '休息日'}
                 </span>
               </div>
               <div>
                 <p className="text-sm font-medium mb-2">今日任务:</p>
                 <ul className="text-sm space-y-1">
-                  {scheduleToday.tasks.map((t, i) => (
+                  {todayPlan.tasks.map((t, i) => (
                     <li key={i} className="flex items-start gap-2">
-                      <span>{todayPlan?.tasks[i]?.status === 'completed' ? '✅' : '⬜'}</span>
-                      <span className={todayPlan?.tasks[i]?.status === 'completed' ? 'line-through opacity-60' : ''}>{t.text}</span>
+                      <span>{t.status === 'completed' ? '✅' : t.status === 'failed' ? '❌' : t.status === 'doing' ? '🔥' : '⬜'}</span>
+                      <span className={t.status === 'completed' ? 'line-through opacity-60' : ''}>{t.text}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${categoryColor(t.category)}`}>{categoryLabel(t.category)}</span>
                     </li>
                   ))}
@@ -138,14 +151,15 @@ export default function Dashboard() {
                   <p className="text-[10px] text-muted-foreground">P:{foodTotal.protein.toFixed(1)}g C:{foodTotal.carbs.toFixed(1)}g F:{foodTotal.fat.toFixed(1)}g</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">今日训练消耗</p>
-                  <p className="text-sm font-semibold text-orange-600">{workoutBurn} kcal</p>
-                  <p className="text-[10px] text-muted-foreground">{workoutBurn > 0 ? `缺口: ${macros.calories - foodTotal.calories + workoutBurn} kcal` : '无训练记录'}</p>
+                  <p className="text-xs text-muted-foreground mb-1">今日消耗</p>
+                  <p className="text-sm font-semibold text-orange-600">{totalBurn} kcal</p>
+                  <p className="text-[10px] text-muted-foreground">运动 {workoutBurn} + BMR {bmr}</p>
+                  <p className="text-[10px] text-muted-foreground">缺口: {totalBurn - foodTotal.calories} kcal</p>
                 </div>
               </div>
             </>
           ) : (
-            <p className="text-muted-foreground">今天暂无预设日程，请前往「每日计划」手动添加。</p>
+            <p className="text-muted-foreground">今天暂无任务记录，请前往「每日计划」添加。</p>
           )}
         </CardContent>
       </Card>

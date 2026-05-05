@@ -41,7 +41,14 @@ export default function NutritionPage() {
     if (idx >= 0) allFoods[idx] = cf;
     else allFoods.push(cf);
   }
-  allFoods.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  // Sort by usage frequency (desc), then by name (asc)
+  const usage = getFoodUsage();
+  allFoods.sort((a, b) => {
+    const usageA = usage[a.name] || 0;
+    const usageB = usage[b.name] || 0;
+    if (usageB !== usageA) return usageB - usageA;
+    return a.name.localeCompare(b.name, 'zh-CN');
+  });
 
   const addEntry = async () => {
     const entry: FoodEntry = {
@@ -56,6 +63,10 @@ export default function NutritionPage() {
       isCustom: newEntry.isCustom,
     };
     await addFoodEntry(entry);
+    // Track food usage for sorting
+    if (newEntry.name) {
+      incrementFoodUsage(newEntry.name);
+    }
     await loadData();
     setNewEntry({ meal: newEntry.meal, name: '', weight: 100, calories: 0, protein: 0, carbs: 0, fat: 0, isCustom: false });
     setSelectedFood('');
@@ -119,8 +130,24 @@ export default function NutritionPage() {
     fat: acc.fat + e.fat,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
-  const meals = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
-  const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
+const FOOD_USAGE_KEY = 'study-tracker-food-usage';
+
+function getFoodUsage(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(FOOD_USAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function incrementFoodUsage(name: string) {
+  const usage = getFoodUsage();
+  usage[name] = (usage[name] || 0) + 1;
+  localStorage.setItem(FOOD_USAGE_KEY, JSON.stringify(usage));
+}
+
+const meals = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
 
   return (
     <div className="space-y-6 animate-in">

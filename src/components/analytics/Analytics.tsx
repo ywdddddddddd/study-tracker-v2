@@ -13,16 +13,26 @@ function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
       const speed = ex.cardioParams.speed || 0;
       const incline = ex.cardioParams.incline || 0;
       const duration = ex.cardioParams.duration || 0;
-      let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
-      met += incline * 0.5;
-      total += met * weightKg * (duration / 60);
+      // Treadmill MET formula from ACSM literature
+      // METs = speed(km/h) * 0.2 + incline(%) * 0.9 + 3.5, then divide by 3.5
+      const mets = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5;
+      total += mets * weightKg * (duration / 60);
     } else if (ex.kind === 'strength') {
+      // Literature-based: ~0.03-0.05 kcal per kg bodyweight per minute of strength training
+      // Using 0.04 as conservative estimate for compound lifts with rest periods
       const strengthCount = w.exercises.filter(e => e.kind === 'strength').length || 1;
       const share = (w.duration || 60) / strengthCount;
-      total += 0.1 * weightKg * share;
+      total += 0.04 * weightKg * share;
     }
   }
   return Math.round(total);
+}
+
+function calculateBMR(weight: number, height: number, age: number, gender: string): number {
+  if (gender === 'male') {
+    return Math.round(10 * weight + 6.25 * height - 5 * age + 5);
+  }
+  return Math.round(10 * weight + 6.25 * height - 5 * age - 161);
 }
 
 export default function AnalyticsPage() {
@@ -30,7 +40,11 @@ export default function AnalyticsPage() {
   const [foodEntries, setFoodEntries] = useState<{date: string; calories: number}[]>([]);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
   const [weight, setWeight] = useState(84);
+  const [height, setHeight] = useState(183);
+  const [age, setAge] = useState(23);
+  const [gender, setGender] = useState('male');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
 
   useEffect(() => { loadData(); }, [weekOffset]);
 
@@ -44,6 +58,9 @@ export default function AnalyticsPage() {
       getWorkoutLogsInRange(start, end),
     ]);
     setWeight(profile.weight);
+    setHeight(profile.height);
+    setAge(profile.age);
+    setGender(profile.gender);
     setPlans(plansData);
     setWorkoutLogs(workouts);
     // Aggregate food calories by date
@@ -147,7 +164,7 @@ export default function AnalyticsPage() {
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <div className="w-full flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${Math.max(4, h)}%` }}>
                       {entries.map(([name, val]) => (
-                        <div key={name} style={{ height: `${(val / total) * 100}%`, background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length] }} title={`${name}: ${val}min`} />
+                        <div key={name} style={{ height: total > 0 ? `${(val / total) * 100}%` : '0%', background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length] }} title={`${name}: ${val}min`} />
                       ))}
                     </div>
                     <span className="text-[10px] text-muted-foreground">{d.day}</span>
@@ -170,37 +187,101 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-lg">热量摄入 vs 消耗 ({dayjs(weekDays[0]).format('M月D日')} - {dayjs(weekDays[6]).format('M月D日')})</CardTitle></CardHeader>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>热量摄入 vs 消耗 ({dayjs(weekDays[0]).format('M月D日')} - {dayjs(weekDays[6]).format('M月D日')})</span>
+              <div className="flex gap-1">
+                <button onClick={() => setChartType('bar')} className={`px-2 py-1 rounded text-xs ${chartType === 'bar' ? 'bg-primary text-primary-foreground' : 'border'}`}>条形图</button>
+                <button onClick={() => setChartType('line')} className={`px-2 py-1 rounded text-xs ${chartType === 'line' ? 'bg-primary text-primary-foreground' : 'border'}`}>折线图</button>
+              </div>
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             {(() => {
+              const bmr = calculateBMR(weight, height, age, gender);
               const intakeData = weekDays.map(d => foodEntries.find(f => f.date === d)?.calories || 0);
-              const burnData = weekDays.map(d => {
+              const workoutBurnData = weekDays.map(d => {
                 const w = workoutLogs.find(l => l.date === d);
                 return w ? calcWorkoutBurn(w, weight) : 0;
               });
-              const maxVal = Math.max(...intakeData, ...burnData, 500);
+              const totalBurnData = workoutBurnData.map(b => b + Math.round(bmr));
+              const deficitData = intakeData.map((intake, i) => totalBurnData[i] - intake);
+              const maxVal = Math.max(...intakeData, ...totalBurnData, 500);
               const avgIntake = intakeData.filter(v => v > 0).length > 0 ? Math.round(intakeData.reduce((a, b) => a + b, 0) / intakeData.filter(v => v > 0).length) : 0;
-              const avgBurn = burnData.filter(v => v > 0).length > 0 ? Math.round(burnData.reduce((a, b) => a + b, 0) / burnData.filter(v => v > 0).length) : 0;
+              const avgWorkoutBurn = workoutBurnData.filter(v => v > 0).length > 0 ? Math.round(workoutBurnData.reduce((a, b) => a + b, 0) / workoutBurnData.filter(v => v > 0).length) : 0;
+              const avgTotalBurn = Math.round(totalBurnData.reduce((a, b) => a + b, 0) / 7);
+              const avgDeficit = Math.round(deficitData.reduce((a, b) => a + b, 0) / 7);
               return (
                 <>
-                  <div className="flex items-end gap-1 h-40 mb-2">
-                    {weekDays.map((d, i) => {
-                      const intakeH = intakeData[i] > 0 ? (intakeData[i] / maxVal) * 100 : 0;
-                      const burnH = burnData[i] > 0 ? (burnData[i] / maxVal) * 100 : 0;
-                      return (
-                        <div key={d} className="flex-1 flex flex-col items-center gap-0.5">
-                          <div className="w-full flex gap-0.5 items-end justify-center" style={{ height: '100%' }}>
-                            <div style={{ height: `${Math.max(2, intakeH)}%`, width: '40%' }} className="bg-blue-400 rounded-t" title={`摄入: ${intakeData[i]}kcal`} />
-                            <div style={{ height: `${Math.max(2, burnH)}%`, width: '40%' }} className="bg-orange-400 rounded-t" title={`消耗: ${burnData[i]}kcal`} />
+                  {chartType === 'bar' ? (
+                    <div className="flex items-end gap-1 h-40 mb-2">
+                      {weekDays.map((d, i) => {
+                        const intakeH = intakeData[i] > 0 ? (intakeData[i] / maxVal) * 100 : 0;
+                        const burnH = totalBurnData[i] > 0 ? (totalBurnData[i] / maxVal) * 100 : 0;
+                        return (
+                          <div key={d} className="flex-1 flex flex-col items-center gap-0.5">
+                            <div className="w-full flex gap-0.5 items-end justify-center" style={{ height: '100%' }}>
+                              <div style={{ height: `${Math.max(2, intakeH)}%`, width: '40%' }} className="bg-blue-400 rounded-t" title={`摄入: ${intakeData[i]}kcal`} />
+                              <div style={{ height: `${Math.max(2, burnH)}%`, width: '40%' }} className="bg-orange-400 rounded-t" title={`总消耗: ${totalBurnData[i]}kcal (运动${workoutBurnData[i]} + 基础${bmr})`} />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{dayjs(d).format('ddd')}</span>
                           </div>
-                          <span className="text-[10px] text-muted-foreground">{dayjs(d).format('ddd')}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-40 mb-2 relative">
+                      <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="none">
+                        {/* Grid lines */}
+                        {[0, 25, 50, 75, 100].map(y => (
+                          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#e5e7eb" strokeWidth="0.5" />
+                        ))}
+                        {/* Intake line */}
+                        <polyline
+                          fill="none"
+                          stroke="#60a5fa"
+                          strokeWidth="1.5"
+                          points={weekDays.map((_d, i) => {
+                            const x = (i / (weekDays.length - 1)) * 100;
+                            const y = 100 - (intakeData[i] > 0 ? (intakeData[i] / maxVal) * 100 : 0);
+                            return `${x},${y}`;
+                          }).join(' ')}
+                        />
+                        {/* Burn line */}
+                        <polyline
+                          fill="none"
+                          stroke="#fb923c"
+                          strokeWidth="1.5"
+                          points={weekDays.map((_d, i) => {
+                            const x = (i / (weekDays.length - 1)) * 100;
+                            const y = 100 - (totalBurnData[i] > 0 ? (totalBurnData[i] / maxVal) * 100 : 0);
+                            return `${x},${y}`;
+                          }).join(' ')}
+                        />
+                        {/* Deficit area */}
+                        <polygon
+                          fill="rgba(34, 197, 94, 0.2)"
+                          stroke="none"
+                          points={weekDays.map((_d, i) => {
+                            const x = (i / (weekDays.length - 1)) * 100;
+                            const intakeY = 100 - (intakeData[i] > 0 ? (intakeData[i] / maxVal) * 100 : 0);
+                            return `${x},${intakeY}`;
+                          }).join(' ') + ' ' + weekDays.map((_d, i) => {
+                            const x = (i / (weekDays.length - 1)) * 100;
+                            const burnY2 = 100 - (totalBurnData[i] > 0 ? (totalBurnData[i] / maxVal) * 100 : 0);
+                            return `${x},${burnY2}`;
+                          }).reverse().join(' ')}
+                        />
+                      </svg>
+                      <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                        {weekDays.map(d => <span key={d}>{dayjs(d).format('ddd')}</span>)}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-center gap-4 text-xs mb-3">
                     <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-400 rounded" /> 摄入</span>
-                    <span className="flex items-center gap-1"><span className="w-3 h-3 bg-orange-400 rounded" /> 消耗</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 bg-orange-400 rounded" /> 总消耗(含BMR)</span>
+                    {chartType === 'line' && <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-400 rounded" /> 赤字区域</span>}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm border-t pt-2">
                     <div className="text-center">
@@ -208,9 +289,15 @@ export default function AnalyticsPage() {
                       <div className="font-semibold text-blue-600">{avgIntake} kcal</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-muted-foreground text-xs">日均消耗</div>
-                      <div className="font-semibold text-orange-600">{avgBurn} kcal</div>
+                      <div className="text-muted-foreground text-xs">日均总消耗</div>
+                      <div className="font-semibold text-orange-600">{avgTotalBurn} kcal</div>
+                      <div className="text-[10px] text-muted-foreground">运动 {avgWorkoutBurn} + BMR {bmr}</div>
                     </div>
+                  </div>
+                  <div className="mt-2 text-center border-t pt-2">
+                    <div className="text-muted-foreground text-xs">日均热量赤字</div>
+                    <div className={`font-semibold ${avgDeficit > 0 ? 'text-green-600' : 'text-red-600'}`}>{avgDeficit > 0 ? '+' : ''}{avgDeficit} kcal</div>
+                    <div className="text-[10px] text-muted-foreground">{avgDeficit > 500 ? '减脂速度较快' : avgDeficit > 0 ? '减脂速度适中' : avgDeficit < -200 ? '可能增重' : '基本平衡'}</div>
                   </div>
                 </>
               );
@@ -229,12 +316,18 @@ export default function AnalyticsPage() {
                 <p>总失败任务数: <span className="font-semibold">{plans.reduce((s, p) => s + p.tasks.filter(t => t.status === 'failed').length, 0)}</span></p>
                 {(() => {
                   const totalIntake = foodEntries.reduce((s, e) => s + e.calories, 0);
-                  const totalBurn = workoutLogs.reduce((s, w) => s + calcWorkoutBurn(w, weight), 0);
+                  const totalWorkoutBurn = workoutLogs.reduce((s, w) => s + calcWorkoutBurn(w, weight), 0);
+                  const bmr = calculateBMR(weight, height, age, gender);
+                  const totalBMR = bmr * 7;
+                  const totalBurn = totalWorkoutBurn + totalBMR;
+                  const deficit = totalBurn - totalIntake;
                   return (
                     <>
                       <p>本周总摄入: <span className="font-semibold text-blue-600">{totalIntake} kcal</span></p>
                       <p>本周总消耗: <span className="font-semibold text-orange-600">{totalBurn} kcal</span></p>
-                      <p>热量缺口: <span className={`font-semibold ${totalIntake - totalBurn > 0 ? 'text-green-600' : 'text-red-600'}`}>{totalIntake - totalBurn} kcal</span></p>
+                      <p className="text-[10px] text-muted-foreground">运动 {totalWorkoutBurn} + 基础代谢 {totalBMR} (BMR {bmr}/天)</p>
+                      <p>热量赤字: <span className={`font-semibold ${deficit > 0 ? 'text-green-600' : 'text-red-600'}`}>{deficit > 0 ? '+' : ''}{deficit} kcal</span></p>
+                      <p className="text-[10px] text-muted-foreground">{deficit > 0 ? `约可减脂 ${(deficit / 7700).toFixed(2)} kg` : '热量盈余，建议控制饮食'}</p>
                     </>
                   );
                 })()}

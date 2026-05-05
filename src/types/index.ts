@@ -27,6 +27,8 @@ export interface Task {
   timerStartedAt?: number;
   timerPausedAt?: number;
   timerAccumulated: number;
+  completionRate?: number; // 0-100, default 100 when completed
+  reason?: string; // reason for failure or partial completion
 }
 
 export interface DailyPlan {

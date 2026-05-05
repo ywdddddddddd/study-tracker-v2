@@ -76,6 +76,38 @@ function TimerModal({ isOpen, onClose, taskName, onSave }: { isOpen: boolean; on
   );
 }
 
+const TASK_TEMPLATES_KEY = 'study-tracker-task-templates';
+
+interface TaskTemplate {
+  id: string;
+  text: string;
+  category: 'english' | 'dental' | 'other';
+  plannedMinutes: number;
+}
+
+function getTaskTemplates(): TaskTemplate[] {
+  try {
+    return JSON.parse(localStorage.getItem(TASK_TEMPLATES_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveTaskTemplate(template: TaskTemplate) {
+  const templates = getTaskTemplates();
+  // Avoid duplicates by text+category
+  const exists = templates.some(t => t.text === template.text && t.category === template.category);
+  if (!exists) {
+    templates.push(template);
+    localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(templates));
+  }
+}
+
+function deleteTaskTemplate(id: string) {
+  const templates = getTaskTemplates().filter(t => t.id !== id);
+  localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(templates));
+}
+
 export default function DailyPlanPage() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [plan, setPlan] = useState<DailyPlan | null>(null);
@@ -86,6 +118,11 @@ export default function DailyPlanPage() {
   const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
   const [customSchedules, setCustomSchedules] = useState<{ date: string; weekday: string; gym: string; tasks: { text: string; category: 'english' | 'dental' | 'other' }[] }[]>([]);
   const [editingSchedule, setEditingSchedule] = useState<{ date: string; weekday: string; gym: string; tasks: { text: string; category: 'english' | 'dental' | 'other' }[] } | null>(null);
+  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>(getTaskTemplates);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [templatePickerCategory, setTemplatePickerCategory] = useState<'english' | 'dental' | 'other'>('other');
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [completionTaskIdx, setCompletionTaskIdx] = useState<number>(-1);
 
   const loadCustomSchedules = useCallback(async () => {
     const cs = await getCustomSchedules();
@@ -138,18 +175,39 @@ export default function DailyPlanPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const addTask = (category: 'english' | 'dental' | 'other') => {
+  const addTask = (category: 'english' | 'dental' | 'other', template?: TaskTemplate) => {
     if (!plan) return;
     const newTask: Task = {
-      id: `${date}-${plan.tasks.length}`,
-      text: '',
-      category,
+      id: `${date}-${plan.tasks.length}-${Date.now()}`,
+      text: template?.text || '',
+      category: template?.category || category,
       status: 'pending',
-      plannedMinutes: 30,
+      plannedMinutes: template?.plannedMinutes || 30,
       actualMinutes: 0,
       timerAccumulated: 0,
     };
     setPlan({ ...plan, tasks: [...plan.tasks, newTask] });
+  };
+
+  const saveCurrentTaskAsTemplate = (task: Task) => {
+    if (!task.text.trim()) {
+      alert('任务名称不能为空');
+      return;
+    }
+    const template: TaskTemplate = {
+      id: `template-${Date.now()}`,
+      text: task.text,
+      category: task.category,
+      plannedMinutes: task.plannedMinutes || 30,
+    };
+    saveTaskTemplate(template);
+    setTaskTemplates(getTaskTemplates());
+    alert(`✅ 已保存任务模板: ${task.text}`);
+  };
+
+  const openTemplatePicker = (category: 'english' | 'dental' | 'other') => {
+    setTemplatePickerCategory(category);
+    setTemplatePickerOpen(true);
   };
 
   const removeTask = (idx: number) => {
@@ -168,6 +226,18 @@ export default function DailyPlanPage() {
     if (!plan || timerTaskIdx < 0) return;
     const task = plan.tasks[timerTaskIdx];
     updateTask(timerTaskIdx, { ...task, actualMinutes: (task.actualMinutes || 0) + minutes });
+  };
+
+  const openCompletionModal = (idx: number) => {
+    setCompletionTaskIdx(idx);
+    setCompletionModalOpen(true);
+  };
+
+  const handleCompletionSave = (rate: number, reason: string) => {
+    if (!plan || completionTaskIdx < 0) return;
+    const task = plan.tasks[completionTaskIdx];
+    updateTask(completionTaskIdx, { ...task, completionRate: rate, reason, status: 'completed' });
+    setCompletionModalOpen(false);
   };
 
   const doneCount = plan?.tasks.filter(t => t.status === 'completed').length || 0;
@@ -239,7 +309,13 @@ export default function DailyPlanPage() {
                       }}>✕</Button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => setEditingSchedule({ ...editingSchedule, tasks: [...editingSchedule.tasks, { text: '', category: 'other' }] })}>+ 添加任务</Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditingSchedule({ ...editingSchedule, tasks: [...editingSchedule.tasks, { text: '', category: 'other' }] })}>+ 添加任务</Button>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      setTemplatePickerCategory('other');
+                      setTemplatePickerOpen(true);
+                    }}>📋 从模板添加</Button>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={async () => { await saveCustomSchedule(editingSchedule); await loadCustomSchedules(); setEditingSchedule(null); }}>💾 保存</Button>
@@ -301,67 +377,101 @@ export default function DailyPlanPage() {
                   <span className={`font-semibold ${section.color}`}>{section.label} ({tasks.length})</span>
                   {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                 </button>
-                {!isCollapsed && (
-                  <div className="p-3 space-y-3">
-                    {tasks.map((task, idxInCat) => {
-                      const globalIdx = getTaskIndex(section.key, idxInCat);
-                      return (
-                        <div key={globalIdx} className="border rounded-lg p-3 space-y-2 bg-white">
-                          <div className="flex items-start gap-2">
-                            <input
-                              type="checkbox"
-                              checked={task.status === 'completed'}
-                              onChange={e => updateTask(globalIdx, { ...task, status: e.target.checked ? 'completed' : 'pending' })}
-                              className="mt-2 w-5 h-5 accent-primary"
-                            />
-                            <div className="flex-1 space-y-2">
-                              <Input
-                                value={task.text}
-                                onChange={e => updateTask(globalIdx, { ...task, text: e.target.value })}
-                                placeholder={`${section.label}任务`}
-                                className={task.status === 'completed' ? 'line-through opacity-60' : ''}
+                  {!isCollapsed && (
+                    <div className="p-3 space-y-3">
+                      {tasks.map((task, idxInCat) => {
+                        const globalIdx = getTaskIndex(section.key, idxInCat);
+                        return (
+                          <div key={globalIdx} className="border rounded-lg p-3 space-y-2 bg-white">
+                            <div className="flex items-start gap-2">
+                              <input
+                                type="checkbox"
+                                checked={task.status === 'completed'}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    openCompletionModal(globalIdx);
+                                  } else {
+                                    updateTask(globalIdx, { ...task, status: 'pending', completionRate: undefined });
+                                  }
+                                }}
+                                className="mt-2 w-5 h-5 accent-primary"
                               />
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <select
-                                  value={task.status}
-                                  onChange={e => updateTask(globalIdx, { ...task, status: e.target.value as any })}
-                                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                                >
-                                  <option value="pending">⬜ 待做</option>
-                                  <option value="doing">🔥 进行中</option>
-                                  <option value="completed">✅ 完成</option>
-                                  <option value="failed">❌ 未完成</option>
-                                </select>
-                                <Button variant="ghost" size="sm" onClick={() => openTimer(globalIdx)}>
-                                  <Clock className="w-4 h-4 mr-1" /> 计时
+                              <div className="flex-1 space-y-2">
+                                <Input
+                                  value={task.text}
+                                  onChange={e => updateTask(globalIdx, { ...task, text: e.target.value })}
+                                  placeholder={`${section.label}任务`}
+                                  className={task.status === 'completed' ? 'line-through opacity-60' : ''}
+                                />
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <select
+                                    value={task.status}
+                                    onChange={e => {
+                                      const newStatus = e.target.value as Task['status'];
+                                      if (newStatus === 'completed') {
+                                        openCompletionModal(globalIdx);
+                                      } else {
+                                        updateTask(globalIdx, { ...task, status: newStatus });
+                                      }
+                                    }}
+                                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                  >
+                                    <option value="pending">⬜ 待做</option>
+                                    <option value="doing">🔥 进行中</option>
+                                    <option value="completed">✅ 完成</option>
+                                    <option value="failed">❌ 未完成</option>
+                                  </select>
+                                  <Button variant="ghost" size="sm" onClick={() => openTimer(globalIdx)}>
+                                    <Clock className="w-4 h-4 mr-1" /> 计时
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    placeholder="耗时(min)"
+                                    className="w-24 h-9 text-sm"
+                                    value={task.actualMinutes || ''}
+                                    onChange={e => updateTask(globalIdx, { ...task, actualMinutes: parseInt(e.target.value) || 0 })}
+                                  />
+                                  <Input
+                                    type="number"
+                                    placeholder="预计(min)"
+                                    className="w-20 h-9 text-sm"
+                                    value={task.plannedMinutes || ''}
+                                    onChange={e => updateTask(globalIdx, { ...task, plannedMinutes: parseInt(e.target.value) || 30 })}
+                                  />
+                                  {task.completionRate !== undefined && (
+                                    <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">
+                                      完成度 {task.completionRate}%
+                                    </span>
+                                  )}
+                                  {task.reason && (
+                                    <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 truncate max-w-[100px]" title={task.reason}>
+                                      {task.reason}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => removeTask(globalIdx)}>
+                                  <X className="w-4 h-4" />
                                 </Button>
-                                <Input
-                                  type="number"
-                                  placeholder="耗时(min)"
-                                  className="w-24 h-9 text-sm"
-                                  value={task.actualMinutes || ''}
-                                  onChange={e => updateTask(globalIdx, { ...task, actualMinutes: parseInt(e.target.value) || 0 })}
-                                />
-                                <Input
-                                  placeholder="原因"
-                                  className="flex-1 min-w-[100px] h-9 text-sm"
-                                  value={task.status === 'failed' ? (plan?.completion || '') : ''}
-                                  onChange={() => {}}
-                                />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground" title="保存为模板" onClick={() => saveCurrentTaskAsTemplate(task)}>
+                                  💾
+                                </Button>
                               </div>
                             </div>
-                            <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => removeTask(globalIdx)}>
-                              <X className="w-4 h-4" />
-                            </Button>
                           </div>
-                        </div>
-                      );
-                    })}
-                    <Button variant="outline" size="sm" onClick={() => addTask(section.key)} className="w-full">
-                      + 添加{section.label}任务
-                    </Button>
-                  </div>
-                )}
+                        );
+                      })}
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => addTask(section.key)} className="flex-1">
+                          + 添加{section.label}任务
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openTemplatePicker(section.key)} className="flex-1">
+                          📋 从模板添加
+                        </Button>
+                      </div>
+                    </div>
+                  )}
               </div>
             );
           })}
@@ -397,6 +507,93 @@ export default function DailyPlanPage() {
       <div className="text-sm text-muted-foreground">
         今日总专注时长: <span className="font-semibold text-foreground">{plan?.totalFocusMinutes || 0} 分钟</span>
       </div>
+
+      {/* Task Template Picker Modal */}
+      {templatePickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setTemplatePickerOpen(false)}>
+          <div className="bg-background rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">选择任务模板 ({SECTIONS.find(s => s.key === templatePickerCategory)?.label})</h3>
+            {taskTemplates.filter(t => t.category === templatePickerCategory).length === 0 ? (
+              <p className="text-muted-foreground text-sm">暂无模板，先创建一个任务并点击 💾 保存为模板</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {taskTemplates.filter(t => t.category === templatePickerCategory).map(template => (
+                  <div key={template.id} className="flex items-center justify-between p-2 border rounded-lg hover:bg-muted">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{template.text}</div>
+                      <div className="text-xs text-muted-foreground">预计 {template.plannedMinutes} 分钟</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" onClick={() => {
+                        if (editingSchedule) {
+                          setEditingSchedule({ ...editingSchedule, tasks: [...editingSchedule.tasks, { text: template.text, category: template.category }] });
+                        } else {
+                          addTask(templatePickerCategory, template);
+                        }
+                        setTemplatePickerOpen(false);
+                      }}>添加</Button>
+                      <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => { deleteTaskTemplate(template.id); setTaskTemplates(getTaskTemplates()); }}>
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setTemplatePickerOpen(false)}>关闭</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Rate Modal */}
+      {completionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setCompletionModalOpen(false)}>
+          <div className="bg-background rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">任务完成度</h3>
+            {completionTaskIdx >= 0 && plan && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">任务: {plan.tasks[completionTaskIdx].text}</p>
+                <div>
+                  <label className="text-sm font-medium">完成度 (%)</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    defaultValue={plan.tasks[completionTaskIdx].completionRate ?? 100}
+                    className="w-full mt-1"
+                    id="completion-rate"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                    <span>0%</span>
+                    <span>50%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">原因/备注 (可选)</label>
+                  <input
+                    type="text"
+                    placeholder="为什么不是100%？或者完成的感受..."
+                    className="w-full mt-1 h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    id="completion-reason"
+                    defaultValue={plan.tasks[completionTaskIdx].reason || ''}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setCompletionModalOpen(false)}>取消</Button>
+                  <Button onClick={() => {
+                    const rateInput = document.getElementById('completion-rate') as HTMLInputElement;
+                    const reasonInput = document.getElementById('completion-reason') as HTMLInputElement;
+                    handleCompletionSave(parseInt(rateInput?.value || '100'), reasonInput?.value || '');
+                  }}>确认完成</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <TimerModal
         isOpen={timerOpen}

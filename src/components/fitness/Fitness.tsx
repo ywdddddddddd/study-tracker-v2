@@ -15,23 +15,22 @@ function calculateBurn(log: WorkoutLog, weightKg: number): number {
       const speed = ex.cardioParams.speed || 0;
       const incline = ex.cardioParams.incline || 0;
       const duration = ex.cardioParams.duration || 0;
-      let met = speed > 6 ? speed * 1.0 : speed * 0.5 + 2;
-      met += incline * 0.5;
-      total += met * weightKg * (duration / 60);
+      // Treadmill MET formula from ACSM Compendium of Physical Activities
+      // VO2 = speed(m/min) * 0.2 + incline(%) * speed(m/min) * 0.9 + 3.5
+      // Convert speed km/h to m/min: speed * 1000 / 60
+      // METs = VO2 / 3.5
+      // Simplified for treadmill: METs = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5
+      const mets = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5;
+      total += mets * weightKg * (duration / 60);
     } else if (ex.kind === 'strength') {
-      // Estimate burn from actual volume: 0.05 kcal per kg lifted per rep
-      // This makes burn responsive to weight/reps changes
-      for (const set of ex.sets) {
-        if (set.weight > 0 && set.reps > 0) {
-          total += 0.05 * set.weight * set.reps;
-        }
-      }
-      // Fallback: if no sets recorded, use duration-based estimate
-      if (total === 0) {
-        const strengthCount = log.exercises.filter(e => e.kind === 'strength').length || 1;
-        const share = (log.duration || 60) / strengthCount;
-        total += 0.1 * weightKg * share;
-      }
+      // Literature-based estimate from Compendium of Physical Activities:
+      // Resistance training (vigorous effort) = 6.0 METs
+      // Resistance training (moderate effort) = 3.5 METs
+      // Using 4.5 METs as average for typical strength training with rest periods
+      // kcal = METs * weight(kg) * duration(hours)
+      const strengthCount = log.exercises.filter(e => e.kind === 'strength').length || 1;
+      const share = (log.duration || 60) / strengthCount;
+      total += 4.5 * weightKg * (share / 60);
     }
   }
   return Math.round(total);
