@@ -18,7 +18,6 @@ function App() {
       <header className="border-b bg-gradient-to-r from-slate-900 to-blue-900 text-white">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <h1 className="text-xl font-bold">考研筑基 · All in One 追踪系统</h1>
-          <p className="text-sm opacity-80">大连医科大学口腔医学专硕 | 六级500+ & 初试350分目标</p>
         </div>
       </header>
 

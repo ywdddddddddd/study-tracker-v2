@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { StatCard } from '../ui/shared';
 import { Progress } from '../ui/progress';
-import { db, type DailyPlan, type Profile, type WeightRecord, getOrCreateProfile } from '../../lib/db';
+import { db, type DailyPlan, type Profile, getOrCreateProfile } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import dayjs from 'dayjs';
 
@@ -10,12 +10,9 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [todayPlan, setTodayPlan] = useState<DailyPlan | null>(null);
   const [stats, setStats] = useState({ completed: 0, total: 0, rate: 0, streak: 0 });
-  const [weightRecords, setWeightRecords] = useState<WeightRecord[]>([]);
   const today = dayjs().format('YYYY-MM-DD');
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     const p = await getOrCreateProfile();
@@ -42,14 +39,14 @@ export default function Dashboard() {
       else if (dates[i] < today) break;
     }
     setStats({ completed, total, rate, streak });
-
-    const wr = await db.weightRecords.orderBy('date').toArray();
-    setWeightRecords(wr);
   }
 
   const scheduleToday = STUDY_SCHEDULE.find(s => s.date === today);
   const todayDone = todayPlan?.tasks.filter(t => t.status === 'completed').length || 0;
-  const todayTotal = todayPlan?.tasks.length || 4;
+  const todayTotal = todayPlan?.tasks.length || 0;
+
+  const categoryLabel = (cat: string) => cat === 'english' ? '英语' : cat === 'dental' ? '专业课' : '其它';
+  const categoryColor = (cat: string) => cat === 'english' ? 'text-blue-600 bg-blue-50' : cat === 'dental' ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50';
 
   return (
     <div className="space-y-6 animate-in">
@@ -75,11 +72,12 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-sm font-medium mb-2">今日任务:</p>
-                <ul className="text-sm text-muted-foreground space-y-1">
+                <ul className="text-sm space-y-1">
                   {scheduleToday.tasks.map((t, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span>{todayPlan?.tasks[i]?.status === 'completed' ? '✅' : '⬜'}</span>
-                      <span className={todayPlan?.tasks[i]?.status === 'completed' ? 'line-through opacity-60' : ''}>{t}</span>
+                      <span className={todayPlan?.tasks[i]?.status === 'completed' ? 'line-through opacity-60' : ''}>{t.text}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${categoryColor(t.category)}`}>{categoryLabel(t.category)}</span>
                     </li>
                   ))}
                 </ul>
@@ -89,7 +87,7 @@ export default function Dashboard() {
                   <span>今日进度</span>
                   <span>{todayDone}/{todayTotal}</span>
                 </div>
-                <Progress value={todayDone} max={todayTotal} />
+                <Progress value={todayDone} max={todayTotal || 1} />
               </div>
             </>
           ) : (
@@ -97,34 +95,6 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-
-      {weightRecords.length > 1 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">体重趋势</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end gap-1 h-32">
-              {weightRecords.slice(-14).map((w, i) => {
-                const min = Math.min(...weightRecords.slice(-14).map(w => w.weight));
-                const max = Math.max(...weightRecords.slice(-14).map(w => w.weight));
-                const range = max - min || 1;
-                const h = ((w.weight - min) / range) * 100;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full bg-primary rounded-t" style={{ height: `${Math.max(10, h)}%` }} />
-                    <span className="text-[10px] text-muted-foreground">{dayjs(w.date).format('D')}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground mt-2">
-              <span>最新: {weightRecords[weightRecords.length - 1]?.weight} kg</span>
-              <span>变化: {(weightRecords[weightRecords.length - 1]?.weight - weightRecords[0]?.weight).toFixed(1)} kg</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

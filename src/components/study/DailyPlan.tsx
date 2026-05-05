@@ -4,45 +4,74 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Progress } from '../ui/progress';
-import { Badge } from '../ui/badge';
 import { db, type DailyPlan, type Task } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import { useTimer, formatDuration } from '../../hooks/useTimer';
 import dayjs from 'dayjs';
-import { Play, Pause, Square, RotateCcw, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp, X } from 'lucide-react';
 
-function TaskTimer({ task, onUpdate }: { task: Task; onUpdate: (t: Task) => void }) {
+const SECTIONS = [
+  { key: 'english', label: '英语', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+  { key: 'dental', label: '专业课', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  { key: 'other', label: '其它', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+] as const;
+
+function TimerModal({ isOpen, onClose, taskName, onSave }: { isOpen: boolean; onClose: () => void; taskName: string; onSave: (minutes: number) => void }) {
   const { isRunning, isPaused, elapsedSeconds, start, pause, resume, stop, reset } = useTimer();
-  const [showTimer, setShowTimer] = useState(false);
+  const [accumulated, setAccumulated] = useState(0);
+
+  if (!isOpen) return null;
 
   const handleStop = () => {
     const secs = stop();
-    onUpdate({ ...task, actualMinutes: Math.round(secs / 60) });
+    const mins = Math.round(secs / 60);
+    setAccumulated(a => a + mins);
+  };
+
+  const handleSave = () => {
+    onSave(accumulated);
+    setAccumulated(0);
+    onClose();
   };
 
   return (
-    <div className="flex items-center gap-2 mt-2">
-      {!showTimer ? (
-        <Button variant="ghost" size="sm" onClick={() => setShowTimer(true)}>
-          <Clock className="w-4 h-4 mr-1" /> 计时
-        </Button>
-      ) : (
-        <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-1">
-          <span className="text-sm font-mono w-16 text-center">{formatDuration(elapsedSeconds)}</span>
-          {!isRunning && !isPaused && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={start}><Play className="w-3 h-3" /></Button>}
-          {isRunning && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={pause}><Pause className="w-3 h-3" /></Button>}
-          {isPaused && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resume}><Play className="w-3 h-3" /></Button>}
-          {(isRunning || isPaused) && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleStop}><Square className="w-3 h-3" /></Button>}
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={reset}><RotateCcw className="w-3 h-3" /></Button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-background rounded-2xl shadow-2xl p-8 w-full max-w-md text-center space-y-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-muted-foreground">{taskName}</h3>
+        <div className="text-7xl font-mono font-bold tracking-wider py-4">
+          {formatDuration(elapsedSeconds)}
         </div>
-      )}
-      <Input
-        type="number"
-        placeholder="耗时(min)"
-        className="w-24 h-8 text-sm"
-        value={task.actualMinutes || ''}
-        onChange={e => onUpdate({ ...task, actualMinutes: parseInt(e.target.value) || 0 })}
-      />
+        {accumulated > 0 && <div className="text-sm text-muted-foreground">本次已累计: {accumulated} 分钟</div>}
+        <div className="flex justify-center gap-4">
+          {!isRunning && !isPaused && (
+            <Button size="lg" onClick={start} className="text-lg px-8 py-6 h-auto">
+              <Play className="w-6 h-6 mr-2" /> 开始
+            </Button>
+          )}
+          {isRunning && (
+            <Button size="lg" variant="outline" onClick={pause} className="text-lg px-8 py-6 h-auto">
+              <Pause className="w-6 h-6 mr-2" /> 暂停
+            </Button>
+          )}
+          {isPaused && (
+            <Button size="lg" onClick={resume} className="text-lg px-8 py-6 h-auto">
+              <Play className="w-6 h-6 mr-2" /> 继续
+            </Button>
+          )}
+          {(isRunning || isPaused) && (
+            <Button size="lg" variant="secondary" onClick={handleStop} className="text-lg px-8 py-6 h-auto">
+              <Square className="w-6 h-6 mr-2" /> 停止
+            </Button>
+          )}
+          <Button size="lg" variant="ghost" onClick={reset} className="text-lg px-4 py-6 h-auto">
+            <RotateCcw className="w-6 h-6" />
+          </Button>
+        </div>
+        <div className="flex gap-2 justify-center">
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSave} disabled={accumulated === 0}>保存 ({accumulated}min)</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -51,6 +80,9 @@ export default function DailyPlanPage() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [saved, setSaved] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ english: false, dental: false, other: false });
+  const [timerOpen, setTimerOpen] = useState(false);
+  const [timerTaskIdx, setTimerTaskIdx] = useState<number>(-1);
 
   const loadPlan = useCallback(async () => {
     const existing = await db.dailyPlans.where('date').equals(date).first();
@@ -60,8 +92,8 @@ export default function DailyPlanPage() {
     } else if (schedule) {
       const tasks: Task[] = schedule.tasks.map((t, i) => ({
         id: `${date}-${i}`,
-        text: t,
-        category: 'study',
+        text: t.text,
+        category: t.category,
         status: 'pending',
         plannedMinutes: 30,
         actualMinutes: 0,
@@ -90,12 +122,12 @@ export default function DailyPlanPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const addTask = () => {
+  const addTask = (category: 'english' | 'dental' | 'other') => {
     if (!plan) return;
     const newTask: Task = {
       id: `${date}-${plan.tasks.length}`,
       text: '',
-      category: 'study',
+      category,
       status: 'pending',
       plannedMinutes: 30,
       actualMinutes: 0,
@@ -107,11 +139,35 @@ export default function DailyPlanPage() {
   const removeTask = (idx: number) => {
     if (!plan) return;
     const tasks = plan.tasks.filter((_, i) => i !== idx);
-    setPlan({ ...plan, tasks });
+    const totalFocus = tasks.reduce((sum, t) => sum + (t.actualMinutes || 0), 0);
+    setPlan({ ...plan, tasks, totalFocusMinutes: totalFocus });
+  };
+
+  const openTimer = (idx: number) => {
+    setTimerTaskIdx(idx);
+    setTimerOpen(true);
+  };
+
+  const handleTimerSave = (minutes: number) => {
+    if (!plan || timerTaskIdx < 0) return;
+    const task = plan.tasks[timerTaskIdx];
+    updateTask(timerTaskIdx, { ...task, actualMinutes: (task.actualMinutes || 0) + minutes });
   };
 
   const doneCount = plan?.tasks.filter(t => t.status === 'completed').length || 0;
   const totalCount = plan?.tasks.length || 0;
+
+  const getTasksByCategory = (cat: string) => plan?.tasks.filter((_, i) => plan.tasks[i].category === cat) || [];
+  const getTaskIndex = (cat: string, idxInCat: number) => {
+    let count = 0;
+    for (let i = 0; i < (plan?.tasks.length || 0); i++) {
+      if (plan!.tasks[i].category === cat) {
+        if (count === idxInCat) return i;
+        count++;
+      }
+    }
+    return -1;
+  };
 
   return (
     <div className="space-y-6 animate-in">
@@ -127,56 +183,88 @@ export default function DailyPlanPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center justify-between">
             每日结果计划表
-            <Badge variant={doneCount === totalCount && totalCount > 0 ? 'default' : 'secondary'}>
-              {doneCount}/{totalCount}
-            </Badge>
+            <span className="text-sm font-normal text-muted-foreground">{doneCount}/{totalCount} 完成</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Progress value={doneCount} max={totalCount || 1} />
 
-          {plan?.tasks.map((task, idx) => (
-            <div key={task.id} className="border rounded-lg p-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={task.status === 'completed'}
-                  onChange={e => updateTask(idx, { ...task, status: e.target.checked ? 'completed' : 'pending' })}
-                  className="mt-2 w-5 h-5 accent-primary"
-                />
-                <div className="flex-1 space-y-2">
-                  <Input
-                    value={task.text}
-                    onChange={e => updateTask(idx, { ...task, text: e.target.value })}
-                    placeholder={`任务 ${idx + 1}`}
-                    className={task.status === 'completed' ? 'line-through opacity-60' : ''}
-                  />
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <select
-                      value={task.status}
-                      onChange={e => updateTask(idx, { ...task, status: e.target.value as any })}
-                      className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                    >
-                      <option value="pending">⬜ 待做</option>
-                      <option value="doing">🔥 进行中</option>
-                      <option value="completed">✅ 完成</option>
-                      <option value="failed">❌ 未完成</option>
-                    </select>
-                    <TaskTimer task={task} onUpdate={t => updateTask(idx, t)} />
-                    <Input
-                      placeholder="原因 (未完成时)"
-                      className="flex-1 min-w-[120px] h-8 text-sm"
-                      value={task.status === 'failed' ? (plan.completion || '') : ''}
-                      onChange={() => {}}
-                    />
+          {SECTIONS.map(section => {
+            const tasks = getTasksByCategory(section.key);
+            const isCollapsed = collapsed[section.key];
+            return (
+              <div key={section.key} className={`border rounded-lg ${section.border}`}>
+                <button
+                  onClick={() => setCollapsed(c => ({ ...c, [section.key]: !c[section.key] }))}
+                  className={`w-full flex items-center justify-between p-3 ${section.bg} rounded-t-lg`}
+                >
+                  <span className={`font-semibold ${section.color}`}>{section.label} ({tasks.length})</span>
+                  {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
+                {!isCollapsed && (
+                  <div className="p-3 space-y-3">
+                    {tasks.map((task, idxInCat) => {
+                      const globalIdx = getTaskIndex(section.key, idxInCat);
+                      return (
+                        <div key={globalIdx} className="border rounded-lg p-3 space-y-2 bg-white">
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={task.status === 'completed'}
+                              onChange={e => updateTask(globalIdx, { ...task, status: e.target.checked ? 'completed' : 'pending' })}
+                              className="mt-2 w-5 h-5 accent-primary"
+                            />
+                            <div className="flex-1 space-y-2">
+                              <Input
+                                value={task.text}
+                                onChange={e => updateTask(globalIdx, { ...task, text: e.target.value })}
+                                placeholder={`${section.label}任务`}
+                                className={task.status === 'completed' ? 'line-through opacity-60' : ''}
+                              />
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <select
+                                  value={task.status}
+                                  onChange={e => updateTask(globalIdx, { ...task, status: e.target.value as any })}
+                                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                >
+                                  <option value="pending">⬜ 待做</option>
+                                  <option value="doing">🔥 进行中</option>
+                                  <option value="completed">✅ 完成</option>
+                                  <option value="failed">❌ 未完成</option>
+                                </select>
+                                <Button variant="ghost" size="sm" onClick={() => openTimer(globalIdx)}>
+                                  <Clock className="w-4 h-4 mr-1" /> 计时
+                                </Button>
+                                <Input
+                                  type="number"
+                                  placeholder="耗时(min)"
+                                  className="w-24 h-9 text-sm"
+                                  value={task.actualMinutes || ''}
+                                  onChange={e => updateTask(globalIdx, { ...task, actualMinutes: parseInt(e.target.value) || 0 })}
+                                />
+                                <Input
+                                  placeholder="原因"
+                                  className="flex-1 min-w-[100px] h-9 text-sm"
+                                  value={task.status === 'failed' ? (plan?.completion || '') : ''}
+                                  onChange={() => {}}
+                                />
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => removeTask(globalIdx)}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <Button variant="outline" size="sm" onClick={() => addTask(section.key)} className="w-full">
+                      + 添加{section.label}任务
+                    </Button>
                   </div>
-                </div>
-                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeTask(idx)}>✕</Button>
+                )}
               </div>
-            </div>
-          ))}
-
-          <Button variant="outline" onClick={addTask} className="w-full">+ 添加任务</Button>
+            );
+          })}
 
           <Textarea
             placeholder="完成✅+耗时 & 未完成❌+耗时+原因"
@@ -209,6 +297,13 @@ export default function DailyPlanPage() {
       <div className="text-sm text-muted-foreground">
         今日总专注时长: <span className="font-semibold text-foreground">{plan?.totalFocusMinutes || 0} 分钟</span>
       </div>
+
+      <TimerModal
+        isOpen={timerOpen}
+        onClose={() => setTimerOpen(false)}
+        taskName={timerTaskIdx >= 0 ? plan?.tasks[timerTaskIdx]?.text || '任务' : '任务'}
+        onSave={handleTimerSave}
+      />
     </div>
   );
 }

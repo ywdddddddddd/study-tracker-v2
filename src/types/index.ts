@@ -20,7 +20,7 @@ export interface WeightRecord {
 export interface Task {
   id: string;
   text: string;
-  category: 'study' | 'fitness' | 'nutrition' | 'other';
+  category: 'english' | 'dental' | 'other';
   status: 'pending' | 'doing' | 'completed' | 'failed';
   plannedMinutes: number;
   actualMinutes: number;
@@ -71,13 +71,34 @@ export interface WorkoutLog {
   date: string;
   type: 'push' | 'pull' | 'legs' | 'rest' | 'cardio';
   exercises: ExerciseLog[];
+  cardio?: CardioLog;
   duration: number;
   notes: string;
 }
 
 export interface ExerciseLog {
   name: string;
+  kind: 'strength' | 'cardio';
   sets: { reps: number; weight: number }[];
+  cardioParams?: { speed?: number; incline?: number; duration?: number };
+}
+
+export interface CardioLog {
+  type: 'treadmill' | 'elliptical' | 'bike' | 'other';
+  speed?: number; // km/h
+  incline?: number; // %
+  duration: number; // min
+  distance?: number; // km
+}
+
+export interface SleepRecord {
+  id?: number;
+  date: string;
+  bedTime: string; // HH:mm
+  wakeTime: string; // HH:mm
+  duration: number; // min, auto calculated
+  quality: 1 | 2 | 3 | 4 | 5;
+  note?: string;
 }
 
 export interface AIConversation {
@@ -85,15 +106,14 @@ export interface AIConversation {
   date: string;
   role: 'user' | 'assistant';
   content: string;
-  type: 'daily_summary' | 'weekly_summary' | 'adjustment' | 'chat';
+  type: 'daily_summary' | 'weekly_summary' | 'adjustment';
 }
 
 export interface ScheduleDay {
   date: string;
   weekday: string;
   gym: string;
-  tasks: string[];
-  modules: string[];
+  tasks: { text: string; category: 'english' | 'dental' | 'other' }[];
 }
 
 export interface FoodItem {
@@ -109,5 +129,5 @@ export interface FoodItem {
 export interface WorkoutPreset {
   type: 'push' | 'pull' | 'legs' | 'rest' | 'cardio';
   name: string;
-  exercises: { name: string; sets: number; reps: string; rest: number }[];
+  exercises: { name: string; kind: 'strength' | 'cardio'; sets: number; reps: string; rest: number; cardioParams?: { speed?: number; incline?: number; duration?: number } }[];
 }
