@@ -1,0 +1,128 @@
+import type { ScheduleDay } from '../types';
+
+export const FOOD_DATABASE: FoodItem[] = [
+  { name: '米饭', unit: '100g', calories: 116, protein: 2.6, carbs: 25.9, fat: 0.3, category: 'carb' },
+  { name: '馒头', unit: '100g', calories: 223, protein: 7.0, carbs: 47.0, fat: 1.1, category: 'carb' },
+  { name: '燕麦片', unit: '100g', calories: 377, protein: 13.5, carbs: 66.9, fat: 6.7, category: 'carb' },
+  { name: '红薯', unit: '100g', calories: 86, protein: 1.6, carbs: 20.1, fat: 0.1, category: 'carb' },
+  { name: '玉米', unit: '100g', calories: 112, protein: 4.0, carbs: 22.8, fat: 1.2, category: 'carb' },
+  { name: '全麦面包', unit: '100g', calories: 246, protein: 8.5, carbs: 45.0, fat: 3.0, category: 'carb' },
+  { name: '鸡胸肉', unit: '100g', calories: 133, protein: 19.4, carbs: 2.5, fat: 5.0, category: 'protein' },
+  { name: '去皮鸡腿肉', unit: '100g', calories: 120, protein: 20.0, carbs: 0, fat: 4.0, category: 'protein' },
+  { name: '牛肉（瘦）', unit: '100g', calories: 106, protein: 20.2, carbs: 0, fat: 2.3, category: 'protein' },
+  { name: '猪里脊', unit: '100g', calories: 150, protein: 20.0, carbs: 0, fat: 7.0, category: 'protein' },
+  { name: '鸡蛋', unit: '1个(50g)', calories: 70, protein: 6.0, carbs: 0.6, fat: 5.0, category: 'protein' },
+  { name: '蛋白粉', unit: '100g', calories: 400, protein: 80.0, carbs: 8.0, fat: 3.0, category: 'protein' },
+  { name: '三文鱼', unit: '100g', calories: 208, protein: 20.0, carbs: 0, fat: 13.0, category: 'protein' },
+  { name: '虾仁', unit: '100g', calories: 85, protein: 18.0, carbs: 0, fat: 0.5, category: 'protein' },
+  { name: '西兰花', unit: '100g', calories: 34, protein: 2.8, carbs: 7.0, fat: 0.4, category: 'veg' },
+  { name: '菠菜', unit: '100g', calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, category: 'veg' },
+  { name: '黄瓜', unit: '100g', calories: 15, protein: 0.7, carbs: 3.6, fat: 0.1, category: 'veg' },
+  { name: '西红柿', unit: '100g', calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2, category: 'veg' },
+  { name: '生菜', unit: '100g', calories: 13, protein: 1.3, carbs: 2.2, fat: 0.2, category: 'veg' },
+  { name: '胡萝卜', unit: '100g', calories: 41, protein: 0.9, carbs: 9.6, fat: 0.2, category: 'veg' },
+  { name: '花菜', unit: '100g', calories: 25, protein: 1.9, carbs: 5.0, fat: 0.3, category: 'veg' },
+  { name: '白菜', unit: '100g', calories: 13, protein: 1.0, carbs: 2.7, fat: 0.1, category: 'veg' },
+  { name: '青椒', unit: '100g', calories: 22, protein: 1.0, carbs: 5.0, fat: 0.2, category: 'veg' },
+  { name: '茄子', unit: '100g', calories: 23, protein: 1.0, carbs: 5.5, fat: 0.2, category: 'veg' },
+  { name: '豆腐', unit: '100g', calories: 76, protein: 8.0, carbs: 1.9, fat: 4.8, category: 'protein' },
+  { name: '牛奶', unit: '100ml', calories: 54, protein: 3.0, carbs: 4.7, fat: 3.2, category: 'other' },
+  { name: '橄榄油', unit: '10g', calories: 88, protein: 0, carbs: 0, fat: 10.0, category: 'fat' },
+  { name: '花生酱', unit: '10g', calories: 59, protein: 2.5, carbs: 2.0, fat: 5.0, category: 'fat' },
+  { name: '牛油果', unit: '100g', calories: 160, protein: 2.0, carbs: 8.5, fat: 14.7, category: 'fat' },
+  { name: '香蕉', unit: '1根(100g)', calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3, category: 'carb' },
+  { name: '苹果', unit: '1个(150g)', calories: 78, protein: 0.3, carbs: 20.8, fat: 0.2, category: 'carb' },
+];
+
+export interface FoodItem {
+  name: string;
+  unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  category: 'protein' | 'carb' | 'veg' | 'fat' | 'other';
+}
+
+export const WORKOUT_PRESETS: WorkoutPreset[] = [
+  {
+    type: 'push',
+    name: '推日 (胸+肩+三头)',
+    exercises: [
+      { name: '杠铃卧推', sets: 4, reps: '8-10', rest: 90 },
+      { name: '上斜哑铃卧推', sets: 4, reps: '10-12', rest: 75 },
+      { name: '坐姿推肩', sets: 4, reps: '10-12', rest: 75 },
+      { name: '哑铃侧平举', sets: 4, reps: '12-15', rest: 60 },
+      { name: '绳索下压', sets: 4, reps: '12-15', rest: 60 },
+      { name: '有氧 (跑步机/椭圆机)', sets: 1, reps: '20min', rest: 0 },
+    ],
+  },
+  {
+    type: 'pull',
+    name: '拉日 (背+肩后束+二头)',
+    exercises: [
+      { name: '高位下拉', sets: 4, reps: '10-12', rest: 75 },
+      { name: '杠铃划船', sets: 4, reps: '8-10', rest: 90 },
+      { name: '坐姿划船', sets: 4, reps: '10-12', rest: 75 },
+      { name: '面拉', sets: 4, reps: '15-20', rest: 60 },
+      { name: '杠铃弯举', sets: 4, reps: '10-12', rest: 60 },
+      { name: '有氧 (跑步机/椭圆机)', sets: 1, reps: '20min', rest: 0 },
+    ],
+  },
+  {
+    type: 'legs',
+    name: '腿日 (股四+腘绳+臀)',
+    exercises: [
+      { name: '杠铃深蹲', sets: 4, reps: '8-10', rest: 120 },
+      { name: '腿举', sets: 4, reps: '12-15', rest: 90 },
+      { name: '罗马尼亚硬拉', sets: 4, reps: '10-12', rest: 90 },
+      { name: '腿屈伸', sets: 4, reps: '12-15', rest: 60 },
+      { name: '腿弯举', sets: 4, reps: '12-15', rest: 60 },
+      { name: '有氧 (跑步机/椭圆机)', sets: 1, reps: '15min', rest: 0 },
+    ],
+  },
+  {
+    type: 'rest',
+    name: '休息日 (纯有氧+拉伸)',
+    exercises: [
+      { name: '有氧 (慢跑/快走/椭圆机)', sets: 1, reps: '40min', rest: 0 },
+      { name: '泡沫轴放松', sets: 1, reps: '10min', rest: 0 },
+      { name: '静态拉伸', sets: 1, reps: '10min', rest: 0 },
+    ],
+  },
+];
+
+export interface WorkoutPreset {
+  type: 'push' | 'pull' | 'legs' | 'rest' | 'cardio';
+  name: string;
+  exercises: { name: string; sets: number; reps: string; rest: number }[];
+}
+
+export const STUDY_SCHEDULE: ScheduleDay[] = [
+  { date: '2026-05-05', weekday: '周二', gym: '推', tasks: ['单词复习：App复习前日六级核心词','翻译1篇真题','修复学：牙体缺损修复（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级翻译','修复学','考研单词'] },
+  { date: '2026-05-06', weekday: '周三', gym: '拉', tasks: ['听力Section B精听','背诵写作模板1段','颌面外科：口腔颌面部感染（精读+习题）','长难句：2个'], modules: ['六级听力','六级写作','颌面外科','考研长难句'] },
+  { date: '2026-05-07', weekday: '周四', gym: '腿', tasks: ['单词复习','仔细阅读1篇（计时12min）','口组病：口腔黏膜病（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级阅读','口组病','考研单词'] },
+  { date: '2026-05-08', weekday: '周五', gym: '休', tasks: ['听力Section C精听','翻译1篇真题','修复学：牙列缺损可摘修复（精读+习题）','长难句：2个'], modules: ['六级听力','六级翻译','修复学','考研长难句'] },
+  { date: '2026-05-09', weekday: '周六', gym: '推', tasks: ['六级全真模考（9:00-11:20）','颌面外科：口腔颌面部创伤（精读+习题）','模考错题归类分析','生词汇总复习'], modules: ['六级模考','颌面外科','错题分析','单词复习'] },
+  { date: '2026-05-10', weekday: '周日', gym: '拉', tasks: ['模考错题分析+薄弱项补强','三科笔记整理+思维导图','下周计划制定','写作模板默写'], modules: ['错题补强','笔记整理','计划制定','模板默写'] },
+  { date: '2026-05-11', weekday: '周一', gym: '腿', tasks: ['听力Section A精听','仔细阅读1篇','口组病：牙源性肿瘤（精读+习题）','长难句：2个'], modules: ['六级听力','六级阅读','口组病','考研长难句'] },
+  { date: '2026-05-12', weekday: '周二', gym: '休', tasks: ['单词复习','翻译1篇真题','修复学：固定桥修复（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级翻译','修复学','考研单词'] },
+  { date: '2026-05-13', weekday: '周三', gym: '推', tasks: ['听力Section B精听','背诵写作模板1段','颌面外科：唾液腺疾病（精读+习题）','长难句：2个'], modules: ['六级听力','六级写作','颌面外科','考研长难句'] },
+  { date: '2026-05-14', weekday: '周四', gym: '拉', tasks: ['单词复习','仔细阅读1篇','口组病：颞下颌关节病（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级阅读','口组病','考研单词'] },
+  { date: '2026-05-15', weekday: '周五', gym: '腿', tasks: ['听力Section C精听','翻译1篇真题','修复学：全口义齿（精读+习题）','长难句：2个'], modules: ['六级听力','六级翻译','修复学','考研长难句'] },
+  { date: '2026-05-16', weekday: '周六', gym: '休', tasks: ['六级全真模考','颌面外科：颌骨疾病（精读+习题）','模考错题归类分析','生词汇总复习'], modules: ['六级模考','颌面外科','错题分析','单词复习'] },
+  { date: '2026-05-17', weekday: '周日', gym: '推', tasks: ['模考错题分析+薄弱项补强','三科笔记整理+思维导图','下周计划制定','写作模板默写'], modules: ['错题补强','笔记整理','计划制定','模板默写'] },
+  { date: '2026-05-18', weekday: '周一', gym: '拉', tasks: ['听力Section A精听','仔细阅读1篇','口组病：口腔颌面部发育（精读+习题）','长难句：2个'], modules: ['六级听力','六级阅读','口组病','考研长难句'] },
+  { date: '2026-05-19', weekday: '周二', gym: '腿', tasks: ['单词复习','翻译1篇真题','修复学：种植修复（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级翻译','修复学','考研单词'] },
+  { date: '2026-05-20', weekday: '周三', gym: '休', tasks: ['听力Section B精听','背诵写作模板1段','颌面外科：口腔颌面部肿瘤（精读+习题）','长难句：2个'], modules: ['六级听力','六级写作','颌面外科','考研长难句'] },
+  { date: '2026-05-21', weekday: '周四', gym: '推', tasks: ['单词复习','仔细阅读1篇','口组病：龋病（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级阅读','口组病','考研单词'] },
+  { date: '2026-05-22', weekday: '周五', gym: '拉', tasks: ['听力Section C精听','翻译1篇真题','修复学：附着体义齿（精读+习题）','长难句：2个'], modules: ['六级听力','六级翻译','修复学','考研长难句'] },
+  { date: '2026-05-23', weekday: '周六', gym: '腿', tasks: ['六级全真模考','颌面外科：正颌外科（精读+习题）','模考错题归类分析','生词汇总复习'], modules: ['六级模考','颌面外科','错题分析','单词复习'] },
+  { date: '2026-05-24', weekday: '周日', gym: '休', tasks: ['模考错题分析+薄弱项补强','三科笔记整理+思维导图','下周计划制定','写作模板默写'], modules: ['错题补强','笔记整理','计划制定','模板默写'] },
+  { date: '2026-05-25', weekday: '周一', gym: '推', tasks: ['听力Section A精听','仔细阅读1篇','口组病：牙髓病（精读+习题）','长难句：2个'], modules: ['六级听力','六级阅读','口组病','考研长难句'] },
+  { date: '2026-05-26', weekday: '周二', gym: '拉', tasks: ['单词复习','翻译1篇真题','修复学：赝复体（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级翻译','修复学','考研单词'] },
+  { date: '2026-05-27', weekday: '周三', gym: '腿', tasks: ['听力Section B精听','背诵写作模板1段','颌面外科：唇腭裂（精读+习题）','长难句：2个'], modules: ['六级听力','六级写作','颌面外科','考研长难句'] },
+  { date: '2026-05-28', weekday: '周四', gym: '休', tasks: ['单词复习','仔细阅读1篇','口组病：牙周病（精读+习题）','考研单词：1个list'], modules: ['六级单词','六级阅读','口组病','考研单词'] },
+  { date: '2026-05-29', weekday: '周五', gym: '推', tasks: ['听力Section C精听','翻译1篇真题','修复学：咬合重建（精读+习题）','长难句：2个'], modules: ['六级听力','六级翻译','修复学','考研长难句'] },
+  { date: '2026-05-30', weekday: '周六', gym: '拉', tasks: ['六级全真模考','颌面外科：种植外科（精读+习题）','模考错题归类分析','生词汇总复习'], modules: ['六级模考','颌面外科','错题分析','单词复习'] },
+];
