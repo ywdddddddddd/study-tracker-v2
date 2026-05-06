@@ -9,31 +9,43 @@ import dayjs from 'dayjs';
 import { ChevronDown, ChevronUp, X, Plus, Flame } from 'lucide-react';
 
 function calculateBurn(log: WorkoutLog, weightKg: number): number {
-  let total = 0;
+  let cardioTotal = 0;
+
+  // Calculate cardio burn from each cardio exercise
   for (const ex of log.exercises) {
     if (ex.kind === 'cardio' && ex.cardioParams) {
       const speed = ex.cardioParams.speed || 0;
       const incline = ex.cardioParams.incline || 0;
       const duration = ex.cardioParams.duration || 0;
       // Treadmill MET formula from ACSM Compendium of Physical Activities
-      // VO2 = speed(m/min) * 0.2 + incline(%) * speed(m/min) * 0.9 + 3.5
-      // Convert speed km/h to m/min: speed * 1000 / 60
-      // METs = VO2 / 3.5
-      // Simplified for treadmill: METs = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5
       const mets = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5;
-      total += mets * weightKg * (duration / 60);
-    } else if (ex.kind === 'strength') {
-      // Literature-based estimate from Compendium of Physical Activities:
-      // Resistance training (vigorous effort) = 6.0 METs
-      // Resistance training (moderate effort) = 3.5 METs
-      // Using 4.5 METs as average for typical strength training with rest periods
-      // kcal = METs * weight(kg) * duration(hours)
-      const strengthCount = log.exercises.filter(e => e.kind === 'strength').length || 1;
-      const share = (log.duration || 60) / strengthCount;
-      total += 4.5 * weightKg * (share / 60);
+      cardioTotal += mets * weightKg * (duration / 60);
     }
   }
-  return Math.round(total);
+
+  // Calculate strength burn: total duration minus cardio duration
+  const cardioDuration = log.exercises
+    .filter(e => e.kind === 'cardio')
+    .reduce((sum, e) => sum + (e.cardioParams?.duration || 0), 0);
+  const strengthDuration = Math.max(0, (log.duration || 0) - cardioDuration);
+
+  // Literature-based: 4.5 METs for resistance training (moderate effort with rest periods)
+  const strengthTotal = strengthDuration > 0
+    ? 4.5 * weightKg * (strengthDuration / 60)
+    : 0;
+
+  return Math.round(cardioTotal + strengthTotal);
+}
+
+function getCardioDuration(log: WorkoutLog): number {
+  return log.exercises
+    .filter(e => e.kind === 'cardio')
+    .reduce((sum, e) => sum + (e.cardioParams?.duration || 0), 0);
+}
+
+function getStrengthDuration(log: WorkoutLog): number {
+  const cardio = getCardioDuration(log);
+  return Math.max(0, (log.duration || 0) - cardio);
 }
 
 export default function FitnessPage() {
@@ -254,10 +266,20 @@ export default function FitnessPage() {
               <Plus className="w-4 h-4 mr-1" /> 添加动作
             </Button>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">训练时长:</span>
-              <Input type="number" className="w-20 h-8" value={log.duration} onChange={e => setLog({ ...log, duration: parseInt(e.target.value) || 0 })} />
-              <span className="text-sm">分钟</span>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <div className="bg-orange-50 rounded-lg p-2 text-center">
+                <div className="text-muted-foreground text-xs">有氧时长</div>
+                <div className="font-semibold text-orange-600">{getCardioDuration(log)} min</div>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-2 text-center">
+                <div className="text-muted-foreground text-xs">无氧时长</div>
+                <div className="font-semibold text-blue-600">{getStrengthDuration(log)} min</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">总时长:</span>
+                <Input type="number" className="w-16 h-8" value={log.duration} onChange={e => setLog({ ...log, duration: parseInt(e.target.value) || 0 })} />
+                <span className="text-sm">min</span>
+              </div>
             </div>
             <div>
               <span className="text-sm font-medium">备注:</span>

@@ -124,14 +124,21 @@ export default function AnalyticsPage() {
                       const prev = arr.slice(0, i).reduce((s: number, [, v]: [string, number]) => s + v, 0);
                       const start = (prev / pieTotal) * 360;
                       const end = ((prev + val) / pieTotal) * 360;
-                      const largeArc = end - start > 180 ? 1 : 0;
-                      const x1 = 50 + 40 * Math.cos((start - 90) * Math.PI / 180);
-                      const y1 = 50 + 40 * Math.sin((start - 90) * Math.PI / 180);
-                      const x2 = 50 + 40 * Math.cos((end - 90) * Math.PI / 180);
-                      const y2 = 50 + 40 * Math.sin((end - 90) * Math.PI / 180);
-                      acc.push(
-                        <path key={name} d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`} fill={TASK_COLORS[i % TASK_COLORS.length]} />
-                      );
+                      const sweep = end - start;
+                      if (arr.length === 1 || sweep >= 359.99) {
+                        acc.push(
+                          <circle key={name} cx="50" cy="50" r="40" fill={TASK_COLORS[i % TASK_COLORS.length]} />
+                        );
+                      } else {
+                        const largeArc = sweep > 180 ? 1 : 0;
+                        const x1 = 50 + 40 * Math.cos((start - 90) * Math.PI / 180);
+                        const y1 = 50 + 40 * Math.sin((start - 90) * Math.PI / 180);
+                        const x2 = 50 + 40 * Math.cos((end - 90) * Math.PI / 180);
+                        const y2 = 50 + 40 * Math.sin((end - 90) * Math.PI / 180);
+                        acc.push(
+                          <path key={name} d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`} fill={TASK_COLORS[i % TASK_COLORS.length]} />
+                        );
+                      }
                       return acc;
                     }, [])}
                     <text x="50" y="52" textAnchor="middle" className="text-[10px] fill-foreground font-bold">{pieTotal}min</text>
@@ -209,8 +216,9 @@ export default function AnalyticsPage() {
               const maxVal = Math.max(...intakeData, ...totalBurnData, 500);
               const avgIntake = intakeData.filter(v => v > 0).length > 0 ? Math.round(intakeData.reduce((a, b) => a + b, 0) / intakeData.filter(v => v > 0).length) : 0;
               const avgWorkoutBurn = workoutBurnData.filter(v => v > 0).length > 0 ? Math.round(workoutBurnData.reduce((a, b) => a + b, 0) / workoutBurnData.filter(v => v > 0).length) : 0;
-              const avgTotalBurn = Math.round(totalBurnData.reduce((a, b) => a + b, 0) / 7);
-              const avgDeficit = Math.round(deficitData.reduce((a, b) => a + b, 0) / 7);
+              const recordedDays = plans.length || 1;
+              const avgTotalBurn = Math.round(totalBurnData.reduce((a, b) => a + b, 0) / recordedDays);
+              const avgDeficit = Math.round(deficitData.reduce((a, b) => a + b, 0) / recordedDays);
               return (
                 <>
                   {chartType === 'bar' ? (
@@ -318,7 +326,8 @@ export default function AnalyticsPage() {
                   const totalIntake = foodEntries.reduce((s, e) => s + e.calories, 0);
                   const totalWorkoutBurn = workoutLogs.reduce((s, w) => s + calcWorkoutBurn(w, weight), 0);
                   const bmr = calculateBMR(weight, height, age, gender);
-                  const totalBMR = bmr * 7;
+                  const recordedDays = plans.length || 1;
+                  const totalBMR = bmr * recordedDays;
                   const totalBurn = totalWorkoutBurn + totalBMR;
                   const deficit = totalBurn - totalIntake;
                   return (

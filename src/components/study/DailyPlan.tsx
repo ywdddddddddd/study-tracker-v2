@@ -94,12 +94,16 @@ function getTaskTemplates(): TaskTemplate[] {
 }
 
 function saveTaskTemplate(template: TaskTemplate) {
-  const templates = getTaskTemplates();
-  // Avoid duplicates by text+category
-  const exists = templates.some(t => t.text === template.text && t.category === template.category);
-  if (!exists) {
-    templates.push(template);
-    localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(templates));
+  try {
+    const templates = getTaskTemplates();
+    // Avoid duplicates by text+category
+    const exists = templates.some(t => t.text === template.text && t.category === template.category);
+    if (!exists) {
+      templates.push(template);
+      localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(templates));
+    }
+  } catch (e) {
+    console.error('Failed to save task template:', e);
   }
 }
 
@@ -123,6 +127,13 @@ export default function DailyPlanPage() {
   const [templatePickerCategory, setTemplatePickerCategory] = useState<'english' | 'dental' | 'other'>('other');
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [completionTaskIdx, setCompletionTaskIdx] = useState<number>(-1);
+
+  // Reload templates from localStorage whenever picker opens to prevent loss
+  useEffect(() => {
+    if (templatePickerOpen) {
+      setTaskTemplates(getTaskTemplates());
+    }
+  }, [templatePickerOpen]);
 
   const loadCustomSchedules = useCallback(async () => {
     const cs = await getCustomSchedules();
@@ -394,7 +405,7 @@ export default function DailyPlanPage() {
                                     updateTask(globalIdx, { ...task, status: 'pending', completionRate: undefined });
                                   }
                                 }}
-                                className="mt-2 w-5 h-5 accent-primary"
+                                className="mt-2 w-4 h-4 md:w-5 md:h-5 accent-primary shrink-0"
                               />
                               <div className="flex-1 space-y-2">
                                 <Input
@@ -428,15 +439,21 @@ export default function DailyPlanPage() {
                                     type="number"
                                     placeholder="耗时(min)"
                                     className="w-24 h-9 text-sm"
-                                    value={task.actualMinutes || ''}
-                                    onChange={e => updateTask(globalIdx, { ...task, actualMinutes: parseInt(e.target.value) || 0 })}
+                                    value={task.actualMinutes ?? ''}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      updateTask(globalIdx, { ...task, actualMinutes: val === '' ? 0 : parseInt(val) || 0 });
+                                    }}
                                   />
                                   <Input
                                     type="number"
                                     placeholder="预计(min)"
                                     className="w-20 h-9 text-sm"
-                                    value={task.plannedMinutes || ''}
-                                    onChange={e => updateTask(globalIdx, { ...task, plannedMinutes: parseInt(e.target.value) || 30 })}
+                                    value={task.plannedMinutes ?? ''}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      updateTask(globalIdx, { ...task, plannedMinutes: val === '' ? 30 : parseInt(val) || 30 });
+                                    }}
                                   />
                                   {task.completionRate !== undefined && (
                                     <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">

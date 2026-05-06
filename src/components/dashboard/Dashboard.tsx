@@ -8,23 +8,24 @@ import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
 
 function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
-  let total = 0;
+  let cardioTotal = 0;
   for (const ex of w.exercises) {
     if (ex.kind === 'cardio' && ex.cardioParams) {
       const speed = ex.cardioParams.speed || 0;
       const incline = ex.cardioParams.incline || 0;
       const duration = ex.cardioParams.duration || 0;
-      // Treadmill MET formula from ACSM literature
       const mets = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5;
-      total += mets * weightKg * (duration / 60);
-    } else if (ex.kind === 'strength') {
-      // Literature-based: ~0.04 kcal per kg bodyweight per minute
-      const strengthCount = w.exercises.filter(e => e.kind === 'strength').length || 1;
-      const share = (w.duration || 60) / strengthCount;
-      total += 0.04 * weightKg * share;
+      cardioTotal += mets * weightKg * (duration / 60);
     }
   }
-  return Math.round(total);
+  const cardioDuration = w.exercises
+    .filter(e => e.kind === 'cardio')
+    .reduce((sum, e) => sum + (e.cardioParams?.duration || 0), 0);
+  const strengthDuration = Math.max(0, (w.duration || 0) - cardioDuration);
+  const strengthTotal = strengthDuration > 0
+    ? 4.5 * weightKg * (strengthDuration / 60)
+    : 0;
+  return Math.round(cardioTotal + strengthTotal);
 }
 
 function calculateBMR(weight: number, height: number, age: number, gender: string): number {

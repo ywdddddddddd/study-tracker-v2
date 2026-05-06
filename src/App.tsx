@@ -7,8 +7,9 @@ import FitnessPage from './components/fitness/Fitness';
 import NutritionPage from './components/nutrition/Nutrition';
 import AnalyticsPage from './components/analytics/Analytics';
 import AIAssistant from './components/ai/AIAssistant';
+import HealthPage from './components/health/Health';
 import SettingsPage from './components/settings/Settings';
-import { LayoutDashboard, ClipboardList, BarChart3, Dumbbell, Apple, PieChart, Bot, Settings } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BarChart3, Dumbbell, Apple, PieChart, Bot, Heart, Settings } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -31,6 +32,7 @@ function App() {
             <TabsTrigger value="nutrition" className="flex-1 min-w-[80px]"><Apple className="w-4 h-4 mr-1" />饮食</TabsTrigger>
             <TabsTrigger value="analytics" className="flex-1 min-w-[80px]"><PieChart className="w-4 h-4 mr-1" />统计</TabsTrigger>
             <TabsTrigger value="ai" className="flex-1 min-w-[80px]"><Bot className="w-4 h-4 mr-1" />AI</TabsTrigger>
+            <TabsTrigger value="health" className="flex-1 min-w-[80px]"><Heart className="w-4 h-4 mr-1" />健康</TabsTrigger>
             <TabsTrigger value="settings" className="flex-1 min-w-[80px]"><Settings className="w-4 h-4 mr-1" />设置</TabsTrigger>
           </TabsList>
 
@@ -41,6 +43,7 @@ function App() {
           <TabsContent value="nutrition"><NutritionPage /></TabsContent>
           <TabsContent value="analytics"><AnalyticsPage /></TabsContent>
           <TabsContent value="ai"><AIAssistant /></TabsContent>
+          <TabsContent value="health"><HealthPage /></TabsContent>
           <TabsContent value="settings"><SettingsPage /></TabsContent>
         </Tabs>
       </main>
