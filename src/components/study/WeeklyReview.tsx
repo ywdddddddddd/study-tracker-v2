@@ -39,6 +39,8 @@ export default function WeeklyReviewPage() {
   const [thisWeek, setThisWeek] = useState<WeeklyReview | null>(null);
   const [nextWeek, setNextWeek] = useState<WeeklyReview | null>(null);
   const [saved, setSaved] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [weekStatus, setWeekStatus] = useState<Record<string, boolean>>({});
 
   const loadBoth = useCallback(async () => {
     const nextStart = dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD');
@@ -61,6 +63,21 @@ export default function WeeklyReviewPage() {
 
   const weekEnd = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
   const nextEnd = dayjs(weekStart).add(13, 'day').format('YYYY-MM-DD');
+
+  // Generate 5 weeks: current week + future 4
+  const scheduleWeeks = Array.from({ length: 5 }, (_, i) => {
+    const start = dayjs(weekStart).add(i * 7, 'day');
+    return { start: start.format('YYYY-MM-DD'), end: start.add(6, 'day').format('YYYY-MM-DD') };
+  });
+
+  const loadWeekStatus = async () => {
+    const status: Record<string, boolean> = {};
+    for (const w of scheduleWeeks) {
+      const r = await getWeeklyReview(w.start);
+      status[w.start] = !!r;
+    }
+    setWeekStatus(status);
+  };
 
   const renderCard = (review: WeeklyReview | null, setReview: (r: WeeklyReview) => void, label: string, start: string, end: string) => (
     <Card>
@@ -120,8 +137,47 @@ export default function WeeklyReviewPage() {
       <div className="flex items-center gap-2">
         <Input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} className="w-auto" />
         <span className="text-sm text-muted-foreground">本周基准</span>
+        <Button variant="outline" size="sm" onClick={async () => {
+          const next = !showSchedule;
+          setShowSchedule(next);
+          if (next) await loadWeekStatus();
+        }}>
+          📅 {showSchedule ? '隐藏日程' : '每周日程'}
+        </Button>
         <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
       </div>
+
+      {/* Weekly Schedule Grid */}
+      {showSchedule && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">每周日程 (当前 + 未来4周)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-5 gap-2 text-xs">
+              {scheduleWeeks.map(w => {
+                const hasData = weekStatus[w.start];
+                const isCurrent = w.start === weekStart;
+                return (
+                  <button
+                    key={w.start}
+                    onClick={() => { setWeekStart(w.start); setShowSchedule(false); }}
+                    className={`p-3 rounded-md text-center border transition-colors ${
+                      isCurrent ? 'border-primary bg-primary/10 font-semibold' :
+                      hasData ? 'border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100' :
+                      'border-gray-200 hover:bg-muted'
+                    }`}
+                  >
+                    <div className="text-[11px] font-medium">{dayjs(w.start).format('M月D日')}</div>
+                    <div className="text-[10px] text-muted-foreground">至 {dayjs(w.end).format('M月D日')}</div>
+                    <div className="text-[10px] mt-1">
+                      {hasData ? <span className="text-emerald-600">● 已填写</span> : <span className="text-gray-300">○ 空白</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {renderCard(thisWeek, r => setThisWeek(r), '本周核心目标与时间预算', weekStart, weekEnd)}
       {renderCard(nextWeek, r => setNextWeek(r), '下周核心目标与时间预算', dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD'), nextEnd)}
