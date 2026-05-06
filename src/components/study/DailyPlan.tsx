@@ -127,6 +127,9 @@ export default function DailyPlanPage() {
   const [templatePickerCategory, setTemplatePickerCategory] = useState<'english' | 'dental' | 'other'>('other');
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [completionTaskIdx, setCompletionTaskIdx] = useState<number>(-1);
+  // Schedule grid
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [datesWithData, setDatesWithData] = useState<Set<string>>(new Set());
 
   // Reload templates from localStorage whenever picker opens to prevent loss
   useEffect(() => {
@@ -275,8 +278,59 @@ export default function DailyPlanPage() {
         <Button variant="outline" size="sm" onClick={() => setDate(dayjs().format('YYYY-MM-DD'))}>今天</Button>
         <Button variant="outline" size="sm" onClick={() => setDate(d => dayjs(d).add(1, 'day').format('YYYY-MM-DD'))}><ChevronRight className="w-4 h-4" /></Button>
         <Button variant="outline" size="sm" onClick={() => { setEditingSchedule(null); setScheduleEditorOpen(true); }}>📅 编辑计划库</Button>
+        <Button variant="outline" size="sm" onClick={async () => {
+          if (!showSchedule) {
+            const allPlans = await import('../../lib/db').then(m => m.getAllDailyPlans());
+            setDatesWithData(new Set(allPlans.map((p: any) => p.date)));
+          }
+          setShowSchedule(!showSchedule);
+        }}>
+          📋 {showSchedule ? '隐藏日程' : '学习日程'}
+        </Button>
         <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
       </div>
+
+      {/* Study Schedule Grid */}
+      {showSchedule && (() => {
+        const startDate = dayjs('2026-05-05');
+        const endDate = dayjs().add(14, 'day');
+        const days: string[] = [];
+        let d = startDate;
+        while (d.isBefore(endDate) || d.isSame(endDate, 'day')) {
+          days.push(d.format('YYYY-MM-DD'));
+          d = d.add(1, 'day');
+        }
+        return (
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-lg">学习日程 ({dayjs(days[0]).format('M/D')} - {dayjs(days[days.length-1]).format('M/D')})</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-5 md:grid-cols-7 gap-1 text-xs">
+                {days.map(dd => {
+                  const hasData = datesWithData.has(dd);
+                  const isToday = dd === dayjs().format('YYYY-MM-DD');
+                  return (
+                    <button
+                      key={dd}
+                      onClick={() => { setDate(dd); setShowSchedule(false); }}
+                      className={`p-2 rounded-md text-center border transition-colors ${
+                        isToday ? 'border-primary bg-primary/10 font-semibold' :
+                        hasData ? 'border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100' :
+                        'border-gray-200 bg-white hover:bg-muted'
+                      }`}
+                    >
+                      <div className="text-[10px]">{dayjs(dd).format('ddd')}</div>
+                      <div className="text-[11px] font-medium">{dd.slice(5)}</div>
+                      <div className="text-[10px] mt-0.5">
+                        {hasData ? <span className="text-emerald-600">● 有数据</span> : <span className="text-gray-300">○</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {scheduleEditorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setScheduleEditorOpen(false); setEditingSchedule(null); }}>

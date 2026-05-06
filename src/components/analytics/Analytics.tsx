@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
                 const entries = Object.entries(d.tasks);
                 return (
                   <div key={i} className="flex-1 flex flex-col justify-end items-center gap-1">
-                    <div className="w-full flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${Math.max(4, h)}%` }}>
+                    <div className="w-full flex flex-col-reverse rounded-t overflow-hidden" style={{ height: total > 0 ? `${Math.max(4, h)}%` : '0%' }}>
                       {entries.map(([name, val]) => (
                         <div key={name} style={{ height: total > 0 ? `${(val / total) * 100}%` : '0%', background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length] }} title={`${name}: ${val}min`} />
                       ))}
@@ -228,7 +228,7 @@ export default function AnalyticsPage() {
                         const burnH = totalBurnData[i] > 0 ? (totalBurnData[i] / maxVal) * 100 : 0;
                         return (
                           <div key={d} className="flex-1 flex flex-col justify-end items-center gap-0.5">
-                            <div className="w-full flex gap-0.5 justify-center" style={{ height: `${Math.max(2, Math.max(intakeH, burnH))}%` }}>
+                            <div className="w-full flex gap-0.5 justify-center" style={{ height: Math.max(intakeH, burnH) > 0 ? `${Math.max(2, Math.max(intakeH, burnH))}%` : '0%' }}>
                               <div style={{ width: '40%' }} className="bg-blue-400 rounded-t h-full" title={`摄入: ${intakeData[i]}kcal`} />
                               <div style={{ width: '40%' }} className="bg-orange-400 rounded-t h-full" title={`总消耗: ${totalBurnData[i]}kcal (运动${workoutBurnData[i]} + 基础${bmr})`} />
                             </div>

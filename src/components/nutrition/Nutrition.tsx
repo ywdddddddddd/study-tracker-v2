@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import { Progress } from '../ui/progress';
 import { FOOD_DATABASE } from '../../data/presets';
-import { type FoodEntry, getOrCreateProfile, calculateMacros, getFoodEntries, addFoodEntry, deleteFoodEntry, getCustomFoods, saveCustomFood, deleteCustomFood } from '../../lib/db';
+import { type FoodEntry, getOrCreateProfile, calculateMacros, getFoodEntries, addFoodEntry, deleteFoodEntry, getCustomFoods, saveCustomFood, deleteCustomFood, getFoodEntriesInRange } from '../../lib/db';
 import dayjs from 'dayjs';
 
 export default function NutritionPage() {
@@ -17,8 +16,9 @@ export default function NutritionPage() {
   const [customFoods, setCustomFoods] = useState<{ name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string }[]>([]);
   const [foodEditorOpen, setFoodEditorOpen] = useState(false);
   const [editingFood, setEditingFood] = useState<{ name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string } | null>(null);
-  const [mealPlan, setMealPlan] = useState<Record<string, string>>({ breakfast: '', lunch: '', dinner: '', snack: '' });
-  const [mealPlanOpen, setMealPlanOpen] = useState(false);
+  // Schedule view
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleData, setScheduleData] = useState<{ date: string; actual: number; target: number }[]>([]);
 
   useEffect(() => { loadData(); }, [date]);
   useEffect(() => { loadCustomFoods(); }, []);
@@ -35,6 +35,29 @@ export default function NutritionPage() {
     const cf = await getCustomFoods();
     setCustomFoods(cf);
   }
+
+  async function loadSchedule() {
+    const profile = await getOrCreateProfile();
+    const macros = calculateMacros(profile);
+    const target = macros.calories;
+    const end = dayjs().format('YYYY-MM-DD');
+    const start = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
+    const entries = await getFoodEntriesInRange(start, end);
+    const map: Record<string, number> = {};
+    for (const e of entries) {
+      map[e.date] = (map[e.date] || 0) + e.calories;
+    }
+    const days: { date: string; actual: number; target: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = dayjs().subtract(i, 'day').format('YYYY-MM-DD');
+      days.push({ date: d, actual: map[d] || 0, target });
+    }
+    setScheduleData(days);
+  }
+
+  useEffect(() => {
+    if (showSchedule) loadSchedule();
+  }, [showSchedule]);
 
   const allFoods: { name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string }[] = [...FOOD_DATABASE];
   // Merge custom foods, overriding built-in by name
@@ -157,6 +180,9 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
       <div className="flex items-center gap-2">
         <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-auto" />
         <Button variant="outline" size="sm" onClick={() => setFoodEditorOpen(true)}>🍱 管理食物库</Button>
+        <Button variant="outline" size="sm" onClick={() => setShowSchedule(!showSchedule)}>
+          📅 {showSchedule ? '隐藏日程' : '饮食日程'}
+        </Button>
       </div>
 
       {foodEditorOpen && (
@@ -293,46 +319,40 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
         );
       })}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center justify-between">
-            <span>🍽️ 饮食模板 (今日计划)</span>
-            <Button variant="ghost" size="sm" onClick={() => setMealPlanOpen(!mealPlanOpen)}>
-              {mealPlanOpen ? '收起' : '展开'}
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        {mealPlanOpen && (
-          <CardContent className="space-y-3">
-            {meals.map(meal => (
-              <div key={meal}>
-                <label className="text-xs font-medium text-muted-foreground">{mealLabels[meal]}</label>
-                <Textarea
-                  value={mealPlan[meal] || ''}
-                  onChange={e => setMealPlan(prev => ({ ...prev, [meal]: e.target.value }))}
-                  placeholder={`${mealLabels[meal]}吃什么？AI可填充...`}
-                  rows={2}
-                />
-              </div>
-            ))}
-            <div className="grid grid-cols-4 gap-2 text-xs text-center">
-              {Object.values(mealPlan).filter(Boolean).length > 0 && (() => {
-                // Estimate calories from meal plan text (rough match against food DB)
-                let totalEstimate = 0;
-                for (const text of Object.values(mealPlan)) {
-                  if (!text) continue;
-                  for (const food of allFoods) {
-                    if (text.includes(food.name)) {
-                      totalEstimate += food.calories;
-                    }
-                  }
-                }
-                return <span className="col-span-4 text-muted-foreground">估算: ~{totalEstimate || '?'} kcal</span>;
-              })()}
+      {/* Nutrition Schedule List */}
+      {showSchedule && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">饮食日程 (近7天)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-7 gap-1 text-xs">
+              {scheduleData.map(d => {
+                const isToday = d.date === dayjs().format('YYYY-MM-DD');
+                const deficit = d.target - d.actual;
+                const pct = d.target > 0 ? Math.round((d.actual / d.target) * 100) : 0;
+                return (
+                  <button
+                    key={d.date}
+                    onClick={() => { setDate(d.date); setShowSchedule(false); }}
+                    className={`p-2 rounded-md text-center border transition-colors ${
+                      isToday ? 'border-primary bg-primary/10 font-semibold' :
+                      'border-gray-200 hover:bg-muted'
+                    }`}
+                  >
+                    <div className="text-[10px]">{dayjs(d.date).format('ddd')}</div>
+                    <div className="text-[11px] font-medium">{d.date.slice(5)}</div>
+                    <div className={`text-xs mt-0.5 font-semibold ${pct <= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                      {d.actual || 0}/{d.target}
+                    </div>
+                    <div className={`text-[10px] ${deficit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {deficit >= 0 ? `-${deficit}` : `+${-deficit}`}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
-        )}
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }

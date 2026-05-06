@@ -56,6 +56,28 @@ export default function FitnessPage() {
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [weight, setWeight] = useState(84);
   const [showSchedule, setShowSchedule] = useState(false);
+  // Editable gym schedule with localStorage persistence
+  const GYM_KEY = 'gym-schedule-custom';
+  const [gymSchedule, setGymSchedule] = useState(() => {
+    try {
+      const stored = localStorage.getItem(GYM_KEY);
+      const overrides: Record<string, string> = stored ? JSON.parse(stored) : {};
+      return GYM_SCHEDULE.map(s => ({ ...s, gym: overrides[s.date] || s.gym }));
+    } catch { return [...GYM_SCHEDULE]; }
+  });
+  const [editingGym, setEditingGym] = useState<string | null>(null);
+
+  const changeGym = (d: string, newGym: string) => {
+    setGymSchedule(prev => prev.map(s => s.date === d ? { ...s, gym: newGym } : s));
+    setEditingGym(null);
+    // Save override to localStorage
+    try {
+      const stored = localStorage.getItem(GYM_KEY);
+      const overrides: Record<string, string> = stored ? JSON.parse(stored) : {};
+      overrides[d] = newGym;
+      localStorage.setItem(GYM_KEY, JSON.stringify(overrides));
+    } catch {}
+  };
 
   useEffect(() => {
     loadData();
@@ -183,29 +205,46 @@ export default function FitnessPage() {
           <CardHeader className="pb-3"><CardTitle className="text-lg">健身日程 (4周)</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-1 text-xs">
-              {GYM_SCHEDULE.map(s => {
+              {gymSchedule.map(s => {
                 const isToday = s.date === dayjs().format('YYYY-MM-DD');
                 return (
-                  <button
+                  <div
                     key={s.date}
-                    onClick={() => { setDate(s.date); setShowSchedule(false); }}
-                    className={`p-2 rounded-md text-center border transition-colors ${
+                    className={`p-2 rounded-md text-center border transition-colors cursor-pointer ${
                       isToday ? 'border-primary bg-primary/10 font-semibold' :
-                      s.gym === '休' ? 'border-gray-200 bg-gray-50 text-muted-foreground' :
+                      s.gym === '休' ? 'border-gray-200 bg-gray-50' :
                       'border-blue-200 bg-blue-50/50 hover:bg-blue-100'
                     }`}
                   >
-                    <div className="text-[10px]">{s.weekday}</div>
-                    <div className="text-[11px] font-medium">{s.date.slice(5)}</div>
-                    <div className={`text-xs mt-0.5 px-1 rounded ${
-                      s.gym === '推' ? 'bg-red-100 text-red-700' :
-                      s.gym === '拉' ? 'bg-blue-100 text-blue-700' :
-                      s.gym === '腿' ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      {s.gym}
-                    </div>
-                  </button>
+                    <div className="text-[10px]" onClick={() => { setDate(s.date); setShowSchedule(false); }}>{s.weekday}</div>
+                    <div className="text-[11px] font-medium" onClick={() => { setDate(s.date); setShowSchedule(false); }}>{s.date.slice(5)}</div>
+                    {editingGym === s.date ? (
+                      <select
+                        value={s.gym}
+                        onChange={e => changeGym(s.date, e.target.value)}
+                        onBlur={() => setEditingGym(null)}
+                        autoFocus
+                        className="text-xs mt-0.5 px-1 py-0.5 rounded w-full border bg-background"
+                      >
+                        <option value="推">推</option>
+                        <option value="拉">拉</option>
+                        <option value="腿">腿</option>
+                        <option value="休">休</option>
+                      </select>
+                    ) : (
+                      <div
+                        onClick={e => { e.stopPropagation(); setEditingGym(s.date); }}
+                        className={`text-xs mt-0.5 px-1 rounded cursor-pointer hover:ring-1 hover:ring-primary ${
+                          s.gym === '推' ? 'bg-red-100 text-red-700' :
+                          s.gym === '拉' ? 'bg-blue-100 text-blue-700' :
+                          s.gym === '腿' ? 'bg-green-100 text-green-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {s.gym}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
