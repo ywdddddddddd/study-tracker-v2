@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { WORKOUT_PRESETS } from '../../data/presets';
+import { WORKOUT_PRESETS, GYM_SCHEDULE } from '../../data/presets';
 import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog } from '../../lib/db';
 import type { WorkoutLog, ExerciseLog } from '../../types';
 import dayjs from 'dayjs';
@@ -55,6 +55,7 @@ export default function FitnessPage() {
   const [saved, setSaved] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [weight, setWeight] = useState(84);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -170,8 +171,47 @@ export default function FitnessPage() {
             </Button>
           ))}
         </div>
+        <Button variant="outline" size="sm" onClick={() => setShowSchedule(!showSchedule)}>
+          📅 {showSchedule ? '隐藏日程' : '健身日程'}
+        </Button>
         <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
       </div>
+
+      {/* Fitness Macro Schedule List */}
+      {showSchedule && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">健身日程 (4周)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-1 text-xs">
+              {GYM_SCHEDULE.map(s => {
+                const isToday = s.date === dayjs().format('YYYY-MM-DD');
+                return (
+                  <button
+                    key={s.date}
+                    onClick={() => { setDate(s.date); setShowSchedule(false); }}
+                    className={`p-2 rounded-md text-center border transition-colors ${
+                      isToday ? 'border-primary bg-primary/10 font-semibold' :
+                      s.gym === '休' ? 'border-gray-200 bg-gray-50 text-muted-foreground' :
+                      'border-blue-200 bg-blue-50/50 hover:bg-blue-100'
+                    }`}
+                  >
+                    <div className="text-[10px]">{s.weekday}</div>
+                    <div className="text-[11px] font-medium">{s.date.slice(5)}</div>
+                    <div className={`text-xs mt-0.5 px-1 rounded ${
+                      s.gym === '推' ? 'bg-red-100 text-red-700' :
+                      s.gym === '拉' ? 'bg-blue-100 text-blue-700' :
+                      s.gym === '腿' ? 'bg-green-100 text-green-700' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>
+                      {s.gym}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {log && (
         <Card>

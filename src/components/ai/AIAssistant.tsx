@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useAI } from '../../hooks/useAI';
-import { getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord, type FoodEntry, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getAllDailyPlans } from '../../lib/db';
+import { getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord, type FoodEntry, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getAllDailyPlans, getWeeklyReview } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
 import { CheckSquare, Brain, Calendar } from 'lucide-react';
@@ -48,17 +48,39 @@ const AGENT_PROMPTS: Record<string, string> = {
   adjustment: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
 
 你的核心能力：
-1. 基于用户当前数据生成优化后的明日日程
-2. 考虑用户的健身计划、学习进度和体力恢复
+1. 基于用户当前数据生成优化后的明日完整安排
+2. 参考本周预算配额，智能分配学习任务时间
+3. 根据健身日程推荐训练方案
+4. 根据饮食目标推荐具体餐食
 
 生成原则：
-- 根据今日完成情况调整明日任务量
-- 考虑健身日和休息日的不同安排
+- 根据本周预算追踪数据，为每个科目分配合理的学习时间
+- 健身日和学习日的任务量应该有区别
+- 饮食建议要具体到餐食和数量
 - 保持英语/专业课/其它的合理比例
 
 输出格式：
-1. 【明日日程建议】列出优化后的任务列表
-2. 每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式输出，方便程序解析`,
+1. 【明日日程建议】列出优化后的任务列表，每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式输出
+2. 【饮食建议】给出早餐/午餐/晚餐/加餐的具体食物建议
+3. 【训练建议】基于当天健身日程给出训练重点`,
+  auto_setup: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
+
+你需要为用户生成明日的完整安排。
+
+生成原则：
+- 严格参考本周预算配额数据，精确分配各科目时间
+- 例如：专业课配额12h/周，已用Xh，剩余Yh，剩余Z天 → 每天应分配(Y/Z)h
+- 健身日和休息日的学习任务量应有差异
+- 饮食建议需具体到每餐的食物和数量，参考用户的饮食习惯
+- 训练安排参考健身日程表
+
+输出格式（必须严格遵守）：
+1. 【明日学习任务】
+每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式输出
+2. 【明日饮食安排】
+早餐: ... | 午餐: ... | 晚餐: ... | 加餐: ...
+3. 【明日训练安排】
+参考健身日程，给出训练重点和具体建议`,
   nutrition: `你是一位运动营养学专家，精通减脂期饮食规划。
 
 你的核心能力：
@@ -171,7 +193,7 @@ export default function AIAssistant() {
     const today = dayjs().format('YYYY-MM-DD');
     const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
 
-    const [profile, todayPlan, yesterdayPlan, rangePlans, foodEntries, workoutLogs, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, allPlans] = await Promise.all([
+    const [profile, todayPlan, yesterdayPlan, rangePlans, foodEntries, workoutLogs, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, allPlans, weekReview] = await Promise.all([
       getOrCreateProfile(),
       getDailyPlan(today),
       getDailyPlan(yesterday),
@@ -183,6 +205,7 @@ export default function AIAssistant() {
       getWeightRecords('desc').then(arr => arr.slice(0, 14)),
       getSleepRecords(14).then(arr => arr.reverse()),
       getAllDailyPlans(),
+      getWeeklyReview(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD')),
     ]);
 
     const macros = calculateMacros(profile);
@@ -208,6 +231,31 @@ export default function AIAssistant() {
     const weightTrend = weightRecords.length >= 2
       ? weightRecords[weightRecords.length - 1].weight - weightRecords[0].weight
       : 0;
+
+    // Weekly budget tracking
+    const catBudget: Record<string, number> = {
+      dental: (weekReview?.budgetDental || 10.5) * 60,
+      english: (weekReview?.budgetEnglish || 7) * 60,
+      other: (weekReview?.budgetReview || 2) * 60,
+    };
+    // Calculate actual time used per category from range plans
+    const catUsed: Record<string, number> = { dental: 0, english: 0, other: 0 };
+    for (const p of rangePlans) {
+      for (const t of p.tasks) {
+        if (t.status === 'completed') {
+          catUsed[t.category] = (catUsed[t.category] || 0) + (t.actualMinutes || 0);
+        }
+      }
+    }
+    const daysRecorded = rangePlans.length;
+    const daysRemaining = Math.max(1, 7 - daysRecorded);
+    const budgetLines = ['dental', 'english', 'other'].map(cat => {
+      const used = Math.round(catUsed[cat] || 0);
+      const total = catBudget[cat] || 0;
+      const remaining = Math.max(0, total - used);
+      const perDay = Math.round(remaining / daysRemaining);
+      return `- ${cat === 'dental' ? '专业课' : cat === 'english' ? '英语' : '其它'}: 已用${used}min/${total}min, 剩余${remaining}min, 建议每日${perDay}min`;
+    }).join('\n');
 
     // Per-meal food details
     const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
@@ -268,6 +316,15 @@ ${workoutLogs.exercises.map(ex => {
 总饮食摄入：${rangeFoodTotal.c} kcal (P${rangeFoodTotal.p.toFixed(1)} C${rangeFoodTotal.cb.toFixed(1)} F${rangeFoodTotal.f.toFixed(1)})
 总训练消耗：${rangeWorkoutBurn} kcal
 预估总赤字：${rangeWorkoutBurn + bmr * rangePlans.length - rangeFoodTotal.c} kcal
+
+=== 本周预算追踪 ===
+每周科目时间配额：
+${budgetLines}
+周目标：
+${weekReview?.taskGoals || '无'}
+${weekReview?.progressGoals || '无'}
+${weekReview?.goals || '无'}
+运动配额：${weekReview?.budgetSport || 3.5}h/周
 
 === 全部历史统计 ===
 总完成任务：${totalCompletedAllTime}
@@ -467,6 +524,21 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
               </Button>
             )}
             <Button onClick={handleSend} disabled={isLoading} className="ml-auto">{isLoading ? '...' : '发送'}</Button>
+            {!isLoading && (
+              <Button variant="outline" size="sm" onClick={async () => {
+                setMode('adjustment');
+                // Trigger analysis+plan in one go
+                const ctx = await gatherContext();
+                const prompt = AGENT_PROMPTS.adjustment;
+                const userMsg = '请基于本周预算追踪数据，综合考虑学习进度、健身安排、饮食目标，生成明日完整安排（学习任务+饮食建议+训练计划）。学习任务用「任务名|分类|预计分钟数」格式输出。饮食建议给出具体餐食。';
+                setConversations(prev => [...prev, { role: 'user', content: '🎯 一键设置明日完整安排' }]);
+                setContent('');
+                setReasoning('');
+                await sendMessage(prompt, `${userMsg}\n\n${ctx}`);
+              }}>
+                🎯 一键设明日
+              </Button>
+            )}
             {isLoading && <Button variant="outline" onClick={abort}>停止</Button>}
           </div>
         </CardContent>

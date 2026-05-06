@@ -200,3 +200,35 @@ export const WORKOUT_PRESETS: WorkoutPreset[] = [
 ];
 
 export const STUDY_SCHEDULE: ScheduleDay[] = [];
+
+export const GYM_SCHEDULE: { date: string; weekday: string; gym: string }[] = [
+  { date: '2026-05-07', weekday: '周四', gym: '拉' },
+  { date: '2026-05-08', weekday: '周五', gym: '腿' },
+  { date: '2026-05-09', weekday: '周六', gym: '休' },
+  { date: '2026-05-10', weekday: '周日', gym: '推' },
+  { date: '2026-05-11', weekday: '周一', gym: '休' },
+  { date: '2026-05-12', weekday: '周二', gym: '拉' },
+  { date: '2026-05-13', weekday: '周三', gym: '腿' },
+  { date: '2026-05-14', weekday: '周四', gym: '休' },
+  { date: '2026-05-15', weekday: '周五', gym: '推' },
+  { date: '2026-05-16', weekday: '周六', gym: '休' },
+  { date: '2026-05-17', weekday: '周日', gym: '拉' },
+  { date: '2026-05-18', weekday: '周一', gym: '腿' },
+  { date: '2026-05-19', weekday: '周二', gym: '休' },
+  { date: '2026-05-20', weekday: '周三', gym: '推' },
+  { date: '2026-05-21', weekday: '周四', gym: '休' },
+  { date: '2026-05-22', weekday: '周五', gym: '拉' },
+  { date: '2026-05-23', weekday: '周六', gym: '腿' },
+  { date: '2026-05-24', weekday: '周日', gym: '休' },
+  { date: '2026-05-25', weekday: '周一', gym: '推' },
+  { date: '2026-05-26', weekday: '周二', gym: '休' },
+  { date: '2026-05-27', weekday: '周三', gym: '拉' },
+  { date: '2026-05-28', weekday: '周四', gym: '腿' },
+  { date: '2026-05-29', weekday: '周五', gym: '休' },
+  { date: '2026-05-30', weekday: '周六', gym: '推' },
+  { date: '2026-05-31', weekday: '周日', gym: '休' },
+  { date: '2026-06-01', weekday: '周一', gym: '拉' },
+  { date: '2026-06-02', weekday: '周二', gym: '腿' },
+  { date: '2026-06-03', weekday: '周三', gym: '休' },
+  { date: '2026-06-04', weekday: '周四', gym: '推' },
+];
