@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { WORKOUT_PRESETS, GYM_SCHEDULE } from '../../data/presets';
-import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog } from '../../lib/db';
+import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog, getGymSchedules, saveGymSchedule } from '../../lib/db';
 import type { WorkoutLog, ExerciseLog } from '../../types';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronUp, X, Plus, Flame } from 'lucide-react';
@@ -56,27 +56,25 @@ export default function FitnessPage() {
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [weight, setWeight] = useState(84);
   const [showSchedule, setShowSchedule] = useState(false);
-  // Editable gym schedule with localStorage persistence
-  const GYM_KEY = 'gym-schedule-custom';
-  const [gymSchedule, setGymSchedule] = useState(() => {
-    try {
-      const stored = localStorage.getItem(GYM_KEY);
-      const overrides: Record<string, string> = stored ? JSON.parse(stored) : {};
-      return GYM_SCHEDULE.map(s => ({ ...s, gym: overrides[s.date] || s.gym }));
-    } catch { return [...GYM_SCHEDULE]; }
-  });
+  // Editable gym schedule with Supabase persistence
+  const [gymSchedule, setGymSchedule] = useState<{ date: string; weekday: string; gym: string }[]>([]);
   const [editingGym, setEditingGym] = useState<string | null>(null);
 
-  const changeGym = (d: string, newGym: string) => {
+  const loadGymSchedule = async () => {
+    const overrides = await getGymSchedules();
+    const overrideMap: Record<string, string> = {};
+    for (const o of overrides) overrideMap[o.date] = o.gym;
+    setGymSchedule(GYM_SCHEDULE.map(s => ({ ...s, gym: overrideMap[s.date] || s.gym })));
+  };
+
+  useEffect(() => {
+    if (showSchedule) loadGymSchedule();
+  }, [showSchedule]);
+
+  const changeGym = async (d: string, newGym: string) => {
     setGymSchedule(prev => prev.map(s => s.date === d ? { ...s, gym: newGym } : s));
     setEditingGym(null);
-    // Save override to localStorage
-    try {
-      const stored = localStorage.getItem(GYM_KEY);
-      const overrides: Record<string, string> = stored ? JSON.parse(stored) : {};
-      overrides[d] = newGym;
-      localStorage.setItem(GYM_KEY, JSON.stringify(overrides));
-    } catch {}
+    await saveGymSchedule(d, newGym);
   };
 
   useEffect(() => {

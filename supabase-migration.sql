@@ -136,3 +136,22 @@ CREATE POLICY "Allow all" ON custom_schedules FOR ALL USING (true) WITH CHECK (t
 -- 11. Add task_goals and progress_goals columns to weekly_reviews
 ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS task_goals TEXT DEFAULT '';
 ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS progress_goals TEXT DEFAULT '';
+
+-- 12. gym_schedules (健身日程自定义)
+CREATE TABLE IF NOT EXISTS gym_schedules (
+  id SERIAL PRIMARY KEY,
+  date TEXT NOT NULL UNIQUE,
+  gym TEXT NOT NULL DEFAULT '休'
+);
+ALTER TABLE gym_schedules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON gym_schedules FOR ALL USING (true) WITH CHECK (true);
+
+-- 13. task_templates (任务模板)
+CREATE TABLE IF NOT EXISTS task_templates (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  category TEXT NOT NULL,
+  planned_minutes INTEGER NOT NULL DEFAULT 30
+);
+ALTER TABLE task_templates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON task_templates FOR ALL USING (true) WITH CHECK (true);

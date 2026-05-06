@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { pinyin } from 'pinyin-pro';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -19,6 +20,8 @@ export default function NutritionPage() {
   // Schedule view
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleData, setScheduleData] = useState<{ date: string; actual: number; target: number }[]>([]);
+  // Search & sort
+  const [foodSearch, setFoodSearch] = useState('');
 
   useEffect(() => { loadData(); }, [date]);
   useEffect(() => { loadCustomFoods(); }, []);
@@ -67,14 +70,40 @@ export default function NutritionPage() {
     if (idx >= 0) allFoods[idx] = cf;
     else allFoods.push(cf);
   }
-  // Sort by usage frequency (desc), then by name (asc)
-  const usage = getFoodUsage();
+  // Sort by category order then pinyin
+  const catOrder: Record<string, number> = { protein: 1, carb: 2, veg: 3, fat: 4, other: 5 };
   allFoods.sort((a, b) => {
-    const usageA = usage[a.name] || 0;
-    const usageB = usage[b.name] || 0;
-    if (usageB !== usageA) return usageB - usageA;
-    return a.name.localeCompare(b.name, 'zh-CN');
+    const catDiff = (catOrder[a.category] || 99) - (catOrder[b.category] || 99);
+    if (catDiff !== 0) return catDiff;
+    const pa = pinyin(a.name, { toneType: 'none', type: 'array' }).join('').toLowerCase();
+    const pb = pinyin(b.name, { toneType: 'none', type: 'array' }).join('').toLowerCase();
+    return pa.localeCompare(pb);
   });
+
+  // Filter + top8 logic
+  const usage = getFoodUsage();
+  const top8: { name: string; unit: string; gramsPerUnit: number; calories: number; protein: number; carbs: number; fat: number; category: string }[] = [];
+  if (!foodSearch) {
+    // Top 8 by usage
+    const ranked = allFoods.map(f => ({ food: f, count: usage[f.name] || 0 })).sort((a, b) => b.count - a.count);
+    for (const r of ranked.slice(0, 8)) {
+      if (r.count > 0) top8.push(r.food);
+    }
+  }
+  // Filter by search (supports name, pinyin, initials)
+  const catLabel: Record<string, string> = { protein: '蛋白质', carb: '碳水', veg: '蔬菜', fat: '脂肪', other: '其它' };
+  const filteredFoods = foodSearch
+    ? allFoods.filter(f => {
+        const search = foodSearch.toLowerCase().trim();
+        if (f.name.includes(search)) return true;
+        const py = pinyin(f.name, { toneType: 'none' }).replace(/\s/g, '').toLowerCase();
+        if (py.includes(search)) return true;
+        const initials = pinyin(f.name, { pattern: 'first', toneType: 'none' }).replace(/\s/g, '').toLowerCase();
+        if (initials.includes(search)) return true;
+        if ((catLabel[f.category] || '').includes(search)) return true;
+        return false;
+      })
+    : allFoods;
 
   const addEntry = async () => {
     const entry: FoodEntry = {
@@ -275,12 +304,44 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
             <select value={newEntry.meal} onChange={e => setNewEntry({ ...newEntry, meal: e.target.value as any })} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
               {meals.map(m => <option key={m} value={m}>{mealLabels[m]}</option>)}
             </select>
-            <select value={selectedFood} onChange={e => selectPresetFood(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm flex-1 min-w-[150px]">
-              <option value="">选择食物 (或自定义)</option>
-              {allFoods.map(f => <option key={f.name} value={f.name}>{f.name} ({f.unit})</option>)}
-            </select>
+            <Input
+              placeholder="搜索食物 (名称/拼音/首字母)"
+              value={foodSearch}
+              onChange={e => { setFoodSearch(e.target.value); setSelectedFood(''); }}
+              className="flex-1 min-w-[150px]"
+            />
             <Input type="number" placeholder="重量(g)" className="w-24" value={newEntry.weight || ''} onChange={e => updateWeight(parseFloat(e.target.value) || 0)} />
           </div>
+          {/* Top 8 sidebar */}
+          {!foodSearch && top8.length > 0 && (
+            <div className="flex gap-1 flex-wrap border rounded-lg p-2 bg-muted/30">
+              <span className="text-xs text-muted-foreground w-full mb-1">🔥 常用:</span>
+              {top8.map(f => (
+                <button key={f.name} onClick={() => selectPresetFood(f.name)} className="text-xs px-2 py-1 rounded bg-background border hover:bg-primary/10 transition-colors">
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Filtered food list */}
+          {(foodSearch || top8.length === 0) && (
+            <div className="max-h-32 overflow-y-auto border rounded-lg p-1 space-y-0.5">
+              {filteredFoods.map(f => (
+                <button
+                  key={f.name}
+                  onClick={() => { selectPresetFood(f.name); setFoodSearch(''); }}
+                  className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors ${selectedFood === f.name ? 'bg-primary/10 font-medium' : ''}`}
+                >
+                  <span>{f.name}</span>
+                  <span className="text-muted-foreground ml-2 text-xs">{f.unit} | {f.calories}kcal</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">({catLabel[f.category]})</span>
+                </button>
+              ))}
+              {filteredFoods.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-4">无匹配食物，请手动输入</p>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 flex-wrap">
             <Input placeholder="食物名称" value={newEntry.name} onChange={e => setNewEntry({ ...newEntry, name: e.target.value, isCustom: true })} className="flex-1" />
             <Input type="number" placeholder="热量" value={newEntry.calories || ''} onChange={e => setNewEntry({ ...newEntry, calories: parseFloat(e.target.value) || 0 })} className="w-20" />
@@ -319,7 +380,7 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
         );
       })}
 
-      {/* Nutrition Schedule List */}
+      {/* Nutrition Schedule List - above intake overview */}
       {showSchedule && (
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-lg">饮食日程 (近7天)</CardTitle></CardHeader>
@@ -327,7 +388,8 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
             <div className="grid grid-cols-7 gap-1 text-xs">
               {scheduleData.map(d => {
                 const isToday = d.date === dayjs().format('YYYY-MM-DD');
-                const deficit = d.target - d.actual;
+                const hasData = d.actual > 0;
+                const deficit = hasData ? d.target - d.actual : 0;
                 const pct = d.target > 0 ? Math.round((d.actual / d.target) * 100) : 0;
                 return (
                   <button
@@ -340,11 +402,11 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
                   >
                     <div className="text-[10px]">{dayjs(d.date).format('ddd')}</div>
                     <div className="text-[11px] font-medium">{d.date.slice(5)}</div>
-                    <div className={`text-xs mt-0.5 font-semibold ${pct <= 100 ? 'text-green-600' : 'text-red-600'}`}>
-                      {d.actual || 0}/{d.target}
+                <div className={`text-xs mt-0.5 font-semibold ${!hasData ? 'text-muted-foreground' : pct <= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                      {hasData ? `${d.actual}/${d.target}` : `0/${d.target}`}
                     </div>
-                    <div className={`text-[10px] ${deficit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {deficit >= 0 ? `-${deficit}` : `+${-deficit}`}
+                    <div className={`text-[10px] ${!hasData ? 'text-muted-foreground' : deficit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {!hasData ? '无数据' : deficit >= 0 ? `-${deficit}` : `+${-deficit}`}
                     </div>
                   </button>
                 );

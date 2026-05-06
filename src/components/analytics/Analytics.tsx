@@ -211,7 +211,10 @@ export default function AnalyticsPage() {
                 const w = workoutLogs.find(l => l.date === d);
                 return w ? calcWorkoutBurn(w, weight) : 0;
               });
-              const totalBurnData = workoutBurnData.map(b => b + Math.round(bmr));
+              const totalBurnData = workoutBurnData.map((b, i) => {
+                const hasData = foodEntries.some(f => f.date === weekDays[i]) || workoutLogs.some(w => w.date === weekDays[i]);
+                return hasData ? b + Math.round(bmr) : 0;
+              });
               const deficitData = intakeData.map((intake, i) => totalBurnData[i] - intake);
               const maxVal = Math.max(...intakeData, ...totalBurnData, 500);
               const avgIntake = intakeData.filter(v => v > 0).length > 0 ? Math.round(intakeData.reduce((a, b) => a + b, 0) / intakeData.filter(v => v > 0).length) : 0;

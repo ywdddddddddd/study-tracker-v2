@@ -149,6 +149,66 @@ export const FOOD_DATABASE: FoodItem[] = [
   { name: '樱桃', unit: '100g', gramsPerUnit: 100, calories: 63, protein: 1.1, carbs: 16, fat: 0.2, category: 'carb' },
   { name: '火龙果', unit: '1个(300g)', gramsPerUnit: 300, calories: 150, protein: 2, carbs: 36, fat: 0.5, category: 'carb' },
   { name: '菠萝', unit: '100g', gramsPerUnit: 100, calories: 50, protein: 0.5, carbs: 13, fat: 0.1, category: 'carb' },
+  // === 饮品 ===
+  { name: '美式咖啡', unit: '250ml', gramsPerUnit: 250, calories: 5, protein: 0.3, carbs: 0.5, fat: 0, category: 'other' },
+  { name: '拿铁', unit: '300ml', gramsPerUnit: 300, calories: 120, protein: 6, carbs: 9, fat: 5, category: 'carb' },
+  { name: '豆浆(甜)', unit: '250ml', gramsPerUnit: 250, calories: 80, protein: 4, carbs: 12, fat: 2, category: 'other' },
+  { name: '橙汁', unit: '250ml', gramsPerUnit: 250, calories: 112, protein: 1.5, carbs: 26, fat: 0.5, category: 'carb' },
+  { name: '运动饮料', unit: '500ml', gramsPerUnit: 500, calories: 120, protein: 0, carbs: 30, fat: 0, category: 'carb' },
+  // === 零食 ===
+  { name: '薯片', unit: '30g', gramsPerUnit: 30, calories: 160, protein: 2, carbs: 15, fat: 10, category: 'carb' },
+  { name: '牛肉干', unit: '30g', gramsPerUnit: 30, calories: 90, protein: 15, carbs: 3, fat: 2, category: 'protein' },
+  { name: '卤蛋', unit: '1个(60g)', gramsPerUnit: 60, calories: 90, protein: 7, carbs: 1, fat: 6, category: 'protein' },
+  { name: '海苔', unit: '10g', gramsPerUnit: 10, calories: 35, protein: 3, carbs: 2, fat: 1.5, category: 'veg' },
+  { name: '魔芋爽', unit: '20g', gramsPerUnit: 20, calories: 15, protein: 0.5, carbs: 3, fat: 0.3, category: 'other' },
+  { name: '坚果混合', unit: '30g', gramsPerUnit: 30, calories: 180, protein: 5, carbs: 5, fat: 16, category: 'fat' },
+  { name: '葡萄干', unit: '30g', gramsPerUnit: 30, calories: 90, protein: 0.8, carbs: 22, fat: 0.2, category: 'carb' },
+  // === 烘焙 ===
+  { name: '吐司面包', unit: '1片(40g)', gramsPerUnit: 40, calories: 100, protein: 3.5, carbs: 18, fat: 2, category: 'carb' },
+  { name: '可颂', unit: '1个(60g)', gramsPerUnit: 60, calories: 230, protein: 4, carbs: 24, fat: 13, category: 'carb' },
+  { name: '蛋挞', unit: '1个(50g)', gramsPerUnit: 50, calories: 190, protein: 3, carbs: 20, fat: 11, category: 'carb' },
+  { name: '肉松面包', unit: '1个(100g)', gramsPerUnit: 100, calories: 320, protein: 8, carbs: 42, fat: 14, category: 'carb' },
+  // === 常见菜肴 ===
+  { name: '番茄炒蛋', unit: '150g', gramsPerUnit: 150, calories: 120, protein: 6, carbs: 5, fat: 8, category: 'other' },
+  { name: '宫保鸡丁', unit: '150g', gramsPerUnit: 150, calories: 220, protein: 18, carbs: 8, fat: 12, category: 'protein' },
+  { name: '麻婆豆腐', unit: '150g', gramsPerUnit: 150, calories: 130, protein: 8, carbs: 6, fat: 9, category: 'protein' },
+  { name: '红烧肉', unit: '100g', gramsPerUnit: 100, calories: 350, protein: 15, carbs: 5, fat: 30, category: 'protein' },
+  { name: '糖醋排骨', unit: '100g', gramsPerUnit: 100, calories: 280, protein: 16, carbs: 12, fat: 18, category: 'protein' },
+  { name: '酸菜鱼', unit: '200g', gramsPerUnit: 200, calories: 180, protein: 20, carbs: 3, fat: 10, category: 'protein' },
+  { name: '麻辣香锅', unit: '200g', gramsPerUnit: 200, calories: 350, protein: 22, carbs: 15, fat: 22, category: 'protein' },
+  { name: '回锅肉', unit: '150g', gramsPerUnit: 150, calories: 280, protein: 16, carbs: 5, fat: 22, category: 'protein' },
+  // === 主食 ===
+  { name: '汤面', unit: '1碗(400g)', gramsPerUnit: 400, calories: 350, protein: 10, carbs: 50, fat: 12, category: 'carb' },
+  { name: '炒饭', unit: '200g', gramsPerUnit: 200, calories: 360, protein: 10, carbs: 50, fat: 14, category: 'carb' },
+  { name: '寿司', unit: '6个(150g)', gramsPerUnit: 150, calories: 200, protein: 7, carbs: 38, fat: 3, category: 'carb' },
+  // === 蛋白质 ===
+  { name: '培根', unit: '30g', gramsPerUnit: 30, calories: 120, protein: 5, carbs: 0, fat: 11, category: 'protein' },
+  { name: '午餐肉', unit: '50g', gramsPerUnit: 50, calories: 140, protein: 6, carbs: 2, fat: 12, category: 'protein' },
+  { name: '蟹棒', unit: '100g', gramsPerUnit: 100, calories: 90, protein: 10, carbs: 10, fat: 2, category: 'protein' },
+  { name: '鱼肉丸', unit: '100g', gramsPerUnit: 100, calories: 80, protein: 12, carbs: 5, fat: 2, category: 'protein' },
+  { name: '鸡胗', unit: '100g', gramsPerUnit: 100, calories: 95, protein: 18, carbs: 0, fat: 2, category: 'protein' },
+  // === 乳制品 ===
+  { name: '奶酪', unit: '30g', gramsPerUnit: 30, calories: 100, protein: 7, carbs: 0.3, fat: 8, category: 'protein' },
+  { name: '淡奶油', unit: '30g', gramsPerUnit: 30, calories: 100, protein: 0.5, carbs: 1, fat: 10, category: 'fat' },
+  // === 蔬菜 ===
+  { name: '秋葵', unit: '100g', gramsPerUnit: 100, calories: 33, protein: 2, carbs: 7, fat: 0.2, category: 'veg' },
+  { name: '空心菜', unit: '100g', gramsPerUnit: 100, calories: 20, protein: 2.2, carbs: 3.5, fat: 0.3, category: 'veg' },
+  { name: '油麦菜', unit: '100g', gramsPerUnit: 100, calories: 15, protein: 1.5, carbs: 2.5, fat: 0.2, category: 'veg' },
+  { name: '茼蒿', unit: '100g', gramsPerUnit: 100, calories: 24, protein: 1.9, carbs: 3.5, fat: 0.3, category: 'veg' },
+  { name: '豆角', unit: '100g', gramsPerUnit: 100, calories: 34, protein: 2.5, carbs: 6.5, fat: 0.3, category: 'veg' },
+  { name: '豇豆', unit: '100g', gramsPerUnit: 100, calories: 33, protein: 2.5, carbs: 6, fat: 0.3, category: 'veg' },
+  // === 酱料 ===
+  { name: '番茄酱', unit: '20g', gramsPerUnit: 20, calories: 20, protein: 0.3, carbs: 4.5, fat: 0.1, category: 'other' },
+  { name: '沙拉酱', unit: '20g', gramsPerUnit: 20, calories: 130, protein: 0.2, carbs: 1, fat: 14, category: 'fat' },
+  { name: '老干妈', unit: '15g', gramsPerUnit: 15, calories: 80, protein: 1, carbs: 2, fat: 8, category: 'fat' },
+  { name: '蜂蜜', unit: '15g', gramsPerUnit: 15, calories: 48, protein: 0.1, carbs: 12.5, fat: 0, category: 'carb' },
+  { name: '白砂糖', unit: '10g', gramsPerUnit: 10, calories: 40, protein: 0, carbs: 10, fat: 0, category: 'carb' },
+  // === 水果 ===
+  { name: '柠檬', unit: '1个(50g)', gramsPerUnit: 50, calories: 18, protein: 0.5, carbs: 4.5, fat: 0.2, category: 'carb' },
+  { name: '龙眼', unit: '100g', gramsPerUnit: 100, calories: 60, protein: 1.2, carbs: 15, fat: 0.1, category: 'carb' },
+  { name: '荔枝', unit: '100g', gramsPerUnit: 100, calories: 66, protein: 0.8, carbs: 16, fat: 0.4, category: 'carb' },
+  { name: '山竹', unit: '100g', gramsPerUnit: 100, calories: 73, protein: 0.4, carbs: 18, fat: 0.6, category: 'carb' },
+  { name: '石榴', unit: '100g', gramsPerUnit: 100, calories: 83, protein: 1.7, carbs: 18.7, fat: 0.6, category: 'carb' },
 ];
 
 export const WORKOUT_PRESETS: WorkoutPreset[] = [

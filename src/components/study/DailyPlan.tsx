@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Progress } from '../ui/progress';
-import { type DailyPlan, type Task, getDailyPlan, saveDailyPlan, saveCustomSchedule, getCustomSchedules, deleteCustomSchedule } from '../../lib/db';
+import { type DailyPlan, type Task, getDailyPlan, saveDailyPlan, saveCustomSchedule, getCustomSchedules, deleteCustomSchedule, getTaskTemplates, saveTaskTemplate, deleteTaskTemplate } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import { useTimer, formatDuration } from '../../hooks/useTimer';
 import dayjs from 'dayjs';
@@ -76,40 +76,12 @@ function TimerModal({ isOpen, onClose, taskName, onSave }: { isOpen: boolean; on
   );
 }
 
-const TASK_TEMPLATES_KEY = 'study-tracker-task-templates';
 
 interface TaskTemplate {
   id: string;
   text: string;
   category: 'english' | 'dental' | 'other';
   plannedMinutes: number;
-}
-
-function getTaskTemplates(): TaskTemplate[] {
-  try {
-    return JSON.parse(localStorage.getItem(TASK_TEMPLATES_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveTaskTemplate(template: TaskTemplate) {
-  try {
-    const templates = getTaskTemplates();
-    // Avoid duplicates by text+category
-    const exists = templates.some(t => t.text === template.text && t.category === template.category);
-    if (!exists) {
-      templates.push(template);
-      localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(templates));
-    }
-  } catch (e) {
-    console.error('Failed to save task template:', e);
-  }
-}
-
-function deleteTaskTemplate(id: string) {
-  const templates = getTaskTemplates().filter(t => t.id !== id);
-  localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(templates));
 }
 
 export default function DailyPlanPage() {
@@ -122,7 +94,9 @@ export default function DailyPlanPage() {
   const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
   const [customSchedules, setCustomSchedules] = useState<{ date: string; weekday: string; gym: string; tasks: { text: string; category: 'english' | 'dental' | 'other' }[] }[]>([]);
   const [editingSchedule, setEditingSchedule] = useState<{ date: string; weekday: string; gym: string; tasks: { text: string; category: 'english' | 'dental' | 'other' }[] } | null>(null);
-  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>(getTaskTemplates);
+  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
+  // Reload templates on mount
+  useEffect(() => { getTaskTemplates().then(setTaskTemplates); }, []);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templatePickerCategory, setTemplatePickerCategory] = useState<'english' | 'dental' | 'other'>('other');
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
@@ -131,10 +105,10 @@ export default function DailyPlanPage() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [datesWithData, setDatesWithData] = useState<Set<string>>(new Set());
 
-  // Reload templates from localStorage whenever picker opens to prevent loss
+  // Reload templates whenever picker opens
   useEffect(() => {
     if (templatePickerOpen) {
-      setTaskTemplates(getTaskTemplates());
+      getTaskTemplates().then(t => setTaskTemplates(t as TaskTemplate[]));
     }
   }, [templatePickerOpen]);
 
@@ -203,7 +177,7 @@ export default function DailyPlanPage() {
     setPlan({ ...plan, tasks: [...plan.tasks, newTask] });
   };
 
-  const saveCurrentTaskAsTemplate = (task: Task) => {
+  const saveCurrentTaskAsTemplate = async (task: Task) => {
     if (!task.text.trim()) {
       alert('任务名称不能为空');
       return;
@@ -214,13 +188,18 @@ export default function DailyPlanPage() {
       category: task.category,
       plannedMinutes: task.plannedMinutes || 30,
     };
-    saveTaskTemplate(template);
-    setTaskTemplates(getTaskTemplates());
+    await saveTaskTemplate(template);
+    setTaskTemplates(await getTaskTemplates() as TaskTemplate[]);
     alert(`✅ 已保存任务模板: ${task.text}`);
+  };
+
+  const loadTaskTemplates = async () => {
+    setTaskTemplates(await getTaskTemplates() as TaskTemplate[]);
   };
 
   const openTemplatePicker = (category: 'english' | 'dental' | 'other') => {
     setTemplatePickerCategory(category);
+    loadTaskTemplates();
     setTemplatePickerOpen(true);
   };
 
@@ -604,7 +583,7 @@ export default function DailyPlanPage() {
                         }
                         setTemplatePickerOpen(false);
                       }}>添加</Button>
-                      <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={() => { deleteTaskTemplate(template.id); setTaskTemplates(getTaskTemplates()); }}>
+                      <Button variant="ghost" size="sm" className="text-destructive h-8 w-8 p-0" onClick={async () => { await deleteTaskTemplate(template.id); setTaskTemplates(await getTaskTemplates() as TaskTemplate[]); }}>
                         <X className="w-3 h-3" />
                       </Button>
                     </div>

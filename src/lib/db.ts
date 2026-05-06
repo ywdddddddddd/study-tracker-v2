@@ -331,6 +331,39 @@ export async function deleteCustomSchedule(date: string) {
   await supabase.from('custom_schedules').delete().eq('date', date);
 }
 
+// --- Gym Schedules (健身日程自定义) ---
+export async function getGymSchedules(): Promise<{ date: string; gym: string }[]> {
+  const { data, error } = await supabase.from('gym_schedules').select('*').order('date', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((d: any) => ({ date: d.date, gym: d.gym }));
+}
+
+export async function saveGymSchedule(date: string, gym: string) {
+  const { error } = await supabase.from('gym_schedules').upsert({ date, gym }, { onConflict: 'date' });
+  if (error) throw error;
+}
+
+// --- Task Templates (任务模板) ---
+export async function getTaskTemplates(): Promise<{ id: string; text: string; category: 'english' | 'dental' | 'other'; plannedMinutes: number }[]> {
+  const { data, error } = await supabase.from('task_templates').select('*').order('id', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((d: any) => ({ id: d.id, text: d.text, category: d.category as any, plannedMinutes: d.planned_minutes }));
+}
+
+export async function saveTaskTemplate(template: { id: string; text: string; category: string; plannedMinutes: number }) {
+  const { error } = await supabase.from('task_templates').upsert({
+    id: template.id,
+    text: template.text,
+    category: template.category,
+    planned_minutes: template.plannedMinutes,
+  });
+  if (error) throw error;
+}
+
+export async function deleteTaskTemplate(id: string) {
+  await supabase.from('task_templates').delete().eq('id', id);
+}
+
 // --- Export / Import ---
 export async function exportAllData() {
   const [profile, weightRecords, dailyPlans, weeklyReviews, foodEntries, workoutLogs, aiConversations, sleepRecords, customFoods, customSchedules] = await Promise.all([
