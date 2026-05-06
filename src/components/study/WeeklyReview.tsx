@@ -51,40 +51,45 @@ export default function WeeklyReviewPage() {
         <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
       </div>
 
+      {/* 本周核心目标与时间预算 */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-lg">1. 本周时间花在哪了？</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">本周核心目标与时间预算 ({dayjs(weekStart).format('M月D日')} - {dayjs(weekEnd).format('M月D日')})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div>
             <label className="text-sm font-medium">主要的时间黑洞是？</label>
             <Textarea value={review?.timeHole || ''} onChange={e => review && setReview({ ...review, timeHole: e.target.value })} placeholder="例如：刷手机、午睡过长" />
           </div>
           <div>
-            <label className="text-sm font-medium">平均每天能专注学习几个小时？</label>
+            <label className="text-sm font-medium">平均每天专注学习 (小时)</label>
             <Input type="number" step="0.5" value={review?.focusHours || ''} onChange={e => review && setReview({ ...review, focusHours: parseFloat(e.target.value) || 0 })} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">本周执行反思与调整</label>
+            <Textarea value={review?.adjust || ''} onChange={e => review && setReview({ ...review, adjust: e.target.value })} placeholder="基于本周执行的反思" />
           </div>
         </CardContent>
       </Card>
 
+      {/* 下周核心目标与时间预算 */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-lg">2. 下周预算怎么分？</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          {[
-            { label: '口腔科目', key: 'budgetDental' },
-            { label: '英语', key: 'budgetEnglish' },
-            { label: '复盘', key: 'budgetReview' },
-            { label: '运动', key: 'budgetSport' },
-          ].map(({ label, key }) => (
-            <div key={key}>
-              <label className="text-sm font-medium">{label} (小时)</label>
-              <Input type="number" step="0.5" value={(review as any)?.[key] || ''} onChange={e => review && setReview({ ...review, [key]: parseFloat(e.target.value) || 0 } as any)} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-lg">3. 下周的核心目标是什么？</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">下周核心目标与时间预算 ({dayjs(weekStart).add(7, 'day').format('M月D日')} - {dayjs(weekStart).add(13, 'day').format('M月D日')})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">每周科目时间配额 (小时)</label>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: '口腔科目', key: 'budgetDental' },
+                { label: '英语', key: 'budgetEnglish' },
+                { label: '复盘', key: 'budgetReview' },
+                { label: '运动', key: 'budgetSport' },
+              ].map(({ label, key }) => (
+                <div key={key}>
+                  <label className="text-xs text-muted-foreground">{label}</label>
+                  <Input type="number" step="0.5" value={(review as any)?.[key] || ''} onChange={e => review && setReview({ ...review, [key]: parseFloat(e.target.value) || 0 } as any)} />
+                </div>
+              ))}
+            </div>
+          </div>
           <div>
             <label className="text-sm font-medium">学习目标（具体任务量）</label>
             <Textarea value={review?.taskGoals || ''} onChange={e => review && setReview({ ...review, taskGoals: e.target.value })} placeholder="例如：英语单词学习50页、真题卷完成2套、口组病学完唾液腺章节" />
@@ -93,17 +98,10 @@ export default function WeeklyReviewPage() {
             <label className="text-sm font-medium">进度目标（覆盖范围）</label>
             <Textarea value={review?.progressGoals || ''} onChange={e => review && setReview({ ...review, progressGoals: e.target.value })} placeholder="例如：完成口组病第3-7章、单词书A-C字母" />
           </div>
-          <div className="pt-2 border-t">
+          <div>
             <label className="text-sm font-medium">综合目标</label>
             <Textarea value={review?.goals || ''} onChange={e => review && setReview({ ...review, goals: e.target.value })} placeholder="只写1-2个最重要的" />
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-lg">4. 有什么需要调整的？</CardTitle></CardHeader>
-        <CardContent>
-          <Textarea value={review?.adjust || ''} onChange={e => review && setReview({ ...review, adjust: e.target.value })} placeholder="基于本周执行的反思" />
         </CardContent>
       </Card>
     </div>

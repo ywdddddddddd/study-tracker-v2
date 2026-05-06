@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -432,14 +434,27 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
                       ))}
                     </div>
                   )}
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.role === 'assistant' ? (
+                    <div className="markdown-body text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
+                  )}
                 </div>
               </div>
             ))}
             {isLoading && (
-              <div className="flex justify-start">
+              <div className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b pb-3 mb-2">
                 <div className="bg-muted rounded-lg px-4 py-2 text-sm">
-                  <span className="animate-pulse">{reasoning ? '深度思考中...' : '连接中...'}</span>
+                  <span className="animate-pulse font-medium">{reasoning ? '🧠 深度思考中...' : '连接中...'}</span>
+                  {reasoning && (
+                    <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto border-t pt-2">
+                      {reasoning}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

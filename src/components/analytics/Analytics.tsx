@@ -162,30 +162,17 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-lg">本周每日耗时</CardTitle></CardHeader>
           <CardContent>
-            <div className="flex items-end gap-1 h-48">
+            <div className="flex gap-1 h-48">
               {barData.map((d, i) => {
                 const total = Object.values(d.tasks).reduce((s, v) => s + v, 0);
                 const h = total > 0 ? (total / maxBar) * 100 : 0;
                 const entries = Object.entries(d.tasks);
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full relative rounded-t overflow-hidden" style={{ height: `${Math.max(4, h)}%` }}>
-                      {entries.map(([name, val], ei) => {
-                        const pct = total > 0 ? (val / total) * 100 : 0;
-                        const offset = entries.slice(0, ei).reduce((s, [, v]) => s + (total > 0 ? (v / total) * 100 : 0), 0);
-                        return (
-                          <div
-                            key={name}
-                            className="absolute left-0 right-0"
-                            style={{
-                              height: `${pct}%`,
-                              bottom: `${offset}%`,
-                              background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length],
-                            }}
-                            title={`${name}: ${val}min`}
-                          />
-                        );
-                      })}
+                  <div key={i} className="flex-1 flex flex-col justify-end items-center gap-1">
+                    <div className="w-full flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${Math.max(4, h)}%` }}>
+                      {entries.map(([name, val]) => (
+                        <div key={name} style={{ height: total > 0 ? `${(val / total) * 100}%` : '0%', background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length] }} title={`${name}: ${val}min`} />
+                      ))}
                     </div>
                     <span className="text-[10px] text-muted-foreground">{d.day}</span>
                     {total > 0 && <span className="text-[10px] text-muted-foreground">{total}m</span>}
@@ -235,15 +222,15 @@ export default function AnalyticsPage() {
               return (
                 <>
                   {chartType === 'bar' ? (
-                    <div className="flex items-end gap-1 h-40 mb-2">
+                    <div className="flex gap-1 h-40 mb-2">
                       {weekDays.map((d, i) => {
                         const intakeH = intakeData[i] > 0 ? (intakeData[i] / maxVal) * 100 : 0;
                         const burnH = totalBurnData[i] > 0 ? (totalBurnData[i] / maxVal) * 100 : 0;
                         return (
-                          <div key={d} className="flex-1 flex flex-col items-center gap-0.5">
-                            <div className="w-full flex gap-0.5 items-end justify-center" style={{ height: '100%' }}>
-                              <div style={{ height: `${Math.max(2, intakeH)}%`, width: '40%' }} className="bg-blue-400 rounded-t" title={`摄入: ${intakeData[i]}kcal`} />
-                              <div style={{ height: `${Math.max(2, burnH)}%`, width: '40%' }} className="bg-orange-400 rounded-t" title={`总消耗: ${totalBurnData[i]}kcal (运动${workoutBurnData[i]} + 基础${bmr})`} />
+                          <div key={d} className="flex-1 flex flex-col justify-end items-center gap-0.5">
+                            <div className="w-full flex gap-0.5 justify-center" style={{ height: `${Math.max(2, Math.max(intakeH, burnH))}%` }}>
+                              <div style={{ width: '40%' }} className="bg-blue-400 rounded-t h-full" title={`摄入: ${intakeData[i]}kcal`} />
+                              <div style={{ width: '40%' }} className="bg-orange-400 rounded-t h-full" title={`总消耗: ${totalBurnData[i]}kcal (运动${workoutBurnData[i]} + 基础${bmr})`} />
                             </div>
                             <span className="text-[10px] text-muted-foreground">{dayjs(d).format('ddd')}</span>
                           </div>

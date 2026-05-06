@@ -199,7 +199,4 @@ export const WORKOUT_PRESETS: WorkoutPreset[] = [
   },
 ];
 
-export const STUDY_SCHEDULE: ScheduleDay[] = [
-  { date: '2026-05-05', weekday: '周二', gym: '推', tasks: [{ text: '单词复习：App复习前日六级核心词', category: 'english' }, { text: '修复学：牙体缺损修复（精读+习题）', category: 'dental' }, { text: '考研单词：1个list', category: 'other' }, { text: '听力Section A精听（对话）', category: 'english' }, { text: '政治：毛中特章节复习', category: 'other' }, { text: '听力精听练习30min', category: 'english' }] },
-  { date: '2026-05-06', weekday: '周三', gym: '休', tasks: [{ text: '单词复习：新学50个六级词汇', category: 'english' }, { text: '修复学：牙列缺损可摘修复（精读+习题）', category: 'dental' }, { text: '考研单词：复习前日list', category: 'other' }, { text: '听力Section B精听（长对话）', category: 'english' }, { text: '政治：史纲章节复习', category: 'other' }, { text: '错题复盘+知识点巩固', category: 'other' }, { text: '写作模板背诵+默写', category: 'english' }] },
-];
+export const STUDY_SCHEDULE: ScheduleDay[] = [];
