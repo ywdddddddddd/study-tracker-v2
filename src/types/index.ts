@@ -53,6 +53,8 @@ export interface WeeklyReview {
   budgetSport: number;
   goals: string;
   adjust: string;
+  taskGoals: string;
+  progressGoals: string;
 }
 
 export interface FoodEntry {

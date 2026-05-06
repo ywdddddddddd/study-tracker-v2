@@ -26,6 +26,8 @@ export default function WeeklyReviewPage() {
         budgetSport: 3.5,
         goals: '',
         adjust: '',
+        taskGoals: '',
+        progressGoals: '',
       });
     }
   }, [weekStart]);
@@ -82,8 +84,19 @@ export default function WeeklyReviewPage() {
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-lg">3. 下周的核心目标是什么？</CardTitle></CardHeader>
-        <CardContent>
-          <Textarea value={review?.goals || ''} onChange={e => review && setReview({ ...review, goals: e.target.value })} placeholder="只写1-2个最重要的" />
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">学习目标（具体任务量）</label>
+            <Textarea value={review?.taskGoals || ''} onChange={e => review && setReview({ ...review, taskGoals: e.target.value })} placeholder="例如：英语单词学习50页、真题卷完成2套、口组病学完唾液腺章节" />
+          </div>
+          <div>
+            <label className="text-sm font-medium">进度目标（覆盖范围）</label>
+            <Textarea value={review?.progressGoals || ''} onChange={e => review && setReview({ ...review, progressGoals: e.target.value })} placeholder="例如：完成口组病第3-7章、单词书A-C字母" />
+          </div>
+          <div className="pt-2 border-t">
+            <label className="text-sm font-medium">综合目标</label>
+            <Textarea value={review?.goals || ''} onChange={e => review && setReview({ ...review, goals: e.target.value })} placeholder="只写1-2个最重要的" />
+          </div>
         </CardContent>
       </Card>
 

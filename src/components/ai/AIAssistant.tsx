@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { useAI } from '../../hooks/useAI';
-import { getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getAllDailyPlans } from '../../lib/db';
+import { getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord, type FoodEntry, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getAllDailyPlans } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
-import { CheckSquare, Brain } from 'lucide-react';
+import { CheckSquare, Brain, Calendar } from 'lucide-react';
 
 const AGENT_PROMPTS: Record<string, string> = {
   daily_summary: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
@@ -116,11 +117,15 @@ export default function AIAssistant() {
   const [suggestedTasks, setSuggestedTasks] = useState<Task[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [showReasoning, setShowReasoning] = useState<Set<number>>(new Set());
+  const [outputTab, setOutputTab] = useState<'all' | 'study' | 'diet' | 'training'>('all');
   const { isLoading, content, reasoning, sendMessage, abort, setContent, setReasoning } = useAI();
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Date range: default from project start (5/5) to today
+  const [dataStart, setDataStart] = useState('2026-05-05');
+  const [dataEnd, setDataEnd] = useState(dayjs().format('YYYY-MM-DD'));
 
   useEffect(() => {
-    if (content) {
+    if (content || reasoning) {
       setConversations(prev => {
         const last = prev[prev.length - 1];
         if (last && last.role === 'assistant') {
@@ -163,19 +168,16 @@ export default function AIAssistant() {
   async function gatherContext(): Promise<string> {
     const today = dayjs().format('YYYY-MM-DD');
     const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
-    const weekStart = dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD');
-    const monthStart = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
 
-    const [profile, todayPlan, yesterdayPlan, weekPlans, monthPlans, foodEntries, workoutLogs, weekFoodEntries, weekWorkouts, weightRecords, sleepRecords, allPlans] = await Promise.all([
+    const [profile, todayPlan, yesterdayPlan, rangePlans, foodEntries, workoutLogs, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, allPlans] = await Promise.all([
       getOrCreateProfile(),
       getDailyPlan(today),
       getDailyPlan(yesterday),
-      getDailyPlansInRange(weekStart, today),
-      getDailyPlansInRange(monthStart, today),
+      getDailyPlansInRange(dataStart, dataEnd),
       getFoodEntries(today),
       getWorkoutLog(today),
-      getFoodEntriesInRange(weekStart, today),
-      getWorkoutLogsInRange(weekStart, today),
+      getFoodEntriesInRange(dataStart, dataEnd),
+      getWorkoutLogsInRange(dataStart, dataEnd),
       getWeightRecords('desc').then(arr => arr.slice(0, 14)),
       getSleepRecords(14).then(arr => arr.reverse()),
       getAllDailyPlans(),
@@ -186,14 +188,14 @@ export default function AIAssistant() {
     const workoutBurn = workoutLogs ? calcWorkoutBurn(workoutLogs, profile.weight) : 0;
     const bmr = calculateBMR(profile.weight, profile.height, profile.age, profile.gender);
 
-    // Weekly aggregates
-    const weekFoodTotal = weekFoodEntries.reduce((acc: {c: number, p: number, f: number, cb: number}, e: {calories: number, protein: number, fat: number, carbs: number}) => ({ c: acc.c + e.calories, p: acc.p + e.protein, f: acc.f + e.fat, cb: acc.cb + e.carbs }), { c: 0, p: 0, f: 0, cb: 0 });
-    const weekWorkoutBurn = weekWorkouts.reduce((s: number, w: WorkoutLog) => s + calcWorkoutBurn(w, profile.weight), 0);
+    // Range aggregates
+    const rangeFoodTotal = rangeFoodEntries.reduce((acc: {c: number, p: number, f: number, cb: number}, e: {calories: number, protein: number, fat: number, carbs: number}) => ({ c: acc.c + e.calories, p: acc.p + e.protein, f: acc.f + e.fat, cb: acc.cb + e.carbs }), { c: 0, p: 0, f: 0, cb: 0 });
+    const rangeWorkoutBurn = rangeWorkouts.reduce((s: number, w: WorkoutLog) => s + calcWorkoutBurn(w, profile.weight), 0);
 
-    // Monthly aggregates
-    const monthCompletedTasks = monthPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'completed').length, 0);
-    const monthFailedTasks = monthPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'failed').length, 0);
-    const monthTotalFocus = monthPlans.reduce((s: number, p: DailyPlan) => s + p.totalFocusMinutes, 0);
+    // Range study stats
+    const rangeCompleted = rangePlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'completed').length, 0);
+    const rangeFailed = rangePlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'failed').length, 0);
+    const rangeTotalFocus = rangePlans.reduce((s: number, p: DailyPlan) => s + p.totalFocusMinutes, 0);
 
     // All time stats
     const totalCompletedAllTime = allPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'completed').length, 0);
@@ -202,8 +204,23 @@ export default function AIAssistant() {
 
     // Weight trend
     const weightTrend = weightRecords.length >= 2
-      ? weightRecords[0].weight - weightRecords[weightRecords.length - 1].weight
+      ? weightRecords[weightRecords.length - 1].weight - weightRecords[0].weight
       : 0;
+
+    // Per-meal food details
+    const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
+    const foodByMeal: Record<string, FoodEntry[]> = {};
+    for (const f of foodEntries) {
+      if (!foodByMeal[f.meal]) foodByMeal[f.meal] = [];
+      foodByMeal[f.meal].push(f);
+    }
+
+    // Per-task efficiency details for today
+    const todayTasksDetail = todayPlan ? todayPlan.tasks.map((t: Task) => {
+      const eff = t.completionRate !== undefined ? `${t.completionRate}%` : (t.status === 'completed' ? '100%' : 'N/A');
+      const reason = t.reason ? ` [原因: ${t.reason}]` : '';
+      return `- ${t.text}: ${t.status === 'completed' ? '✅完成' : t.status === 'failed' ? '❌失败' : t.status === 'doing' ? '🔥进行中' : '⬜待做'} | 效率${eff} | 实际${t.actualMinutes}min/预计${t.plannedMinutes}min${reason}`;
+    }).join('\n') : '无记录';
 
     return `
 === 用户档案 ===
@@ -213,38 +230,42 @@ export default function AIAssistant() {
 每日目标热量：${macros.calories}kcal，蛋白质${macros.protein}g，碳水${macros.carbs}g，脂肪${macros.fat}g
 
 === 今日(${today})学习 ===
-${todayPlan ? todayPlan.tasks.map((t: Task) => `- ${t.text}: ${t.status === 'completed' ? '完成' : t.status === 'failed' ? '未完成' : t.status === 'doing' ? '进行中' : '待做'} (${t.actualMinutes}min) [${t.category === 'english' ? '英语' : t.category === 'dental' ? '专业课' : '其它'}]`).join('\n') : '无记录'}
+${todayTasksDetail}
 总专注时长：${todayPlan?.totalFocusMinutes || 0}min
-复盘：${todayPlan?.conquered || '无'} | 难点：${todayPlan?.difficulty || '无'} | 调整：${todayPlan?.adjust || '无'}
+复盘成果：${todayPlan?.conquered || '无'}
+难点：${todayPlan?.difficulty || '无'}
+调整：${todayPlan?.adjust || '无'}
 
 === 昨日(${yesterday})学习 ===
-${yesterdayPlan ? yesterdayPlan.tasks.map((t: Task) => `- ${t.text}: ${t.status === 'completed' ? '完成' : '未完成'} (${t.actualMinutes}min)`).join('\n') : '无记录'}
+${yesterdayPlan ? yesterdayPlan.tasks.map((t: Task) => `- ${t.text}: ${t.status === 'completed' ? '✅完成' : '❌失败'} (${t.actualMinutes}min)${t.completionRate !== undefined ? ` 效率${t.completionRate}%` : ''}`).join('\n') : '无记录'}
+复盘：${yesterdayPlan?.conquered || '无'}
 
-=== 本周统计(${weekStart}~${today}) ===
-记录天数：${weekPlans.length}
-完成任务：${weekPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'completed').length, 0)}
-失败任务：${weekPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'failed').length, 0)}
-总专注时长：${weekPlans.reduce((s: number, p: DailyPlan) => s + p.totalFocusMinutes, 0)}min
-
-=== 今日饮食 ===
-热量：${foodTotal.c}/${macros.calories} kcal
-蛋白质：${foodTotal.p.toFixed(1)}/${macros.protein}g
-碳水：${foodTotal.cb.toFixed(1)}/${macros.carbs}g
-脂肪：${foodTotal.f.toFixed(1)}/${macros.fat}g
+=== 今日饮食详情 ===
+${['breakfast', 'lunch', 'dinner', 'snack'].map(m => {
+  const items = foodByMeal[m] || [];
+  if (items.length === 0) return '';
+  const total = items.reduce((s, e) => s + e.calories, 0);
+  return `${(mealLabels as any)[m]} (${total}kcal):\n${items.map(e => `  - ${e.name} ${e.weight}g (${e.calories}kcal, P${e.protein}g C${e.carbs}g F${e.fat}g)`).join('\n')}`;
+}).filter(Boolean).join('\n') || '无记录'}
+今日总计：${foodTotal.c} kcal (P${foodTotal.p.toFixed(1)} C${foodTotal.cb.toFixed(1)} F${foodTotal.f.toFixed(1)})
+目标摄入：${macros.calories}kcal (P${macros.protein}g C${macros.carbs}g F${macros.fat}g)
 
 === 今日训练 ===
-${workoutLogs ? `类型：${workoutLogs.type}，时长${workoutLogs.duration}min，运动消耗约${workoutBurn}kcal，总消耗(含BMR)约${workoutBurn + bmr}kcal` : '无训练记录'}
+${workoutLogs ? `类型：${workoutLogs.type}，时长${workoutLogs.duration}min，运动消耗约${workoutBurn}kcal，总消耗(含BMR)约${workoutBurn + bmr}kcal
+动作详情：
+${workoutLogs.exercises.map(ex => {
+  if (ex.kind === 'cardio') return `  - ${ex.name}: 有氧 ${ex.cardioParams?.duration || 0}min @${ex.cardioParams?.speed || 0}km/h`;
+  return `  - ${ex.name}: 力量 ${ex.sets.length}组 (${ex.sets.map(s => `${s.reps}次${s.weight > 0 ? `${s.weight}kg` : ''}`).join(', ')})`;
+}).join('\n')}` : '无训练记录'}
 
-=== 本周饮食汇总 ===
-总摄入：${weekFoodTotal.c} kcal
-总消耗：${weekWorkoutBurn + bmr * weekPlans.length} kcal (运动${weekWorkoutBurn} + BMR${bmr}*${weekPlans.length}天)
-平均每日摄入：${weekPlans.length > 0 ? Math.round(weekFoodTotal.c / weekPlans.length) : 0} kcal
-
-=== 本月统计(${monthStart}~${today}) ===
-记录天数：${monthPlans.length}
-完成任务：${monthCompletedTasks}
-失败任务：${monthFailedTasks}
-总专注时长：${monthTotalFocus}min
+=== 日期范围统计(${dataStart}~${dataEnd}) ===
+记录天数：${rangePlans.length}
+完成任务：${rangeCompleted}
+失败任务：${rangeFailed}
+总专注时长：${rangeTotalFocus}min
+总饮食摄入：${rangeFoodTotal.c} kcal (P${rangeFoodTotal.p.toFixed(1)} C${rangeFoodTotal.cb.toFixed(1)} F${rangeFoodTotal.f.toFixed(1)})
+总训练消耗：${rangeWorkoutBurn} kcal
+预估总赤字：${rangeWorkoutBurn + bmr * rangePlans.length - rangeFoodTotal.c} kcal
 
 === 全部历史统计 ===
 总完成任务：${totalCompletedAllTime}
@@ -253,7 +274,7 @@ ${workoutLogs ? `类型：${workoutLogs.type}，时长${workoutLogs.duration}min
 
 === 体重记录（最近14天）===
 ${weightRecords.map((w: WeightRecord) => `- ${w.date}: ${w.weight}kg${w.bodyFat ? ` (体脂${w.bodyFat}%)` : ''}`).join('\n')}
-体重趋势：${weightTrend > 0 ? '上升' : '下降'} ${Math.abs(weightTrend).toFixed(1)}kg
+体重趋势：${weightTrend > 0 ? '上升' : weightTrend < 0 ? '下降' : '持平'} ${Math.abs(weightTrend).toFixed(1)}kg
 
 === 睡眠记录（最近14天）===
 ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime}, ${Math.floor(s.duration / 60)}h${s.duration % 60}m, 质量${s.quality}/5`).join('\n')}
@@ -353,6 +374,13 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
               ))}
             </div>
           </CardTitle>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <Calendar className="w-3 h-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">数据范围:</span>
+            <Input type="date" value={dataStart} onChange={e => setDataStart(e.target.value)} className="w-auto h-7 text-xs px-2" />
+            <span className="text-xs text-muted-foreground">至</span>
+            <Input type="date" value={dataEnd} onChange={e => setDataEnd(e.target.value)} className="w-auto h-7 text-xs px-2" />
+          </div>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2">
@@ -384,6 +412,24 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
                           {msg.reasoning}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {msg.role === 'assistant' && conversations.filter(c => c.role === 'assistant').length > 1 && (
+                    <div className="flex gap-1 mb-2 border-b pb-1">
+                      {[
+                        { key: 'all', label: '全部' },
+                        { key: 'study', label: '学习' },
+                        { key: 'diet', label: '饮食' },
+                        { key: 'training', label: '训练' },
+                      ].map(t => (
+                        <button
+                          key={t.key}
+                          onClick={() => setOutputTab(t.key as any)}
+                          className={`text-xs px-2 py-0.5 rounded ${outputTab === t.key ? 'bg-primary text-primary-foreground' : 'hover:bg-muted-foreground/10'}`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
                     </div>
                   )}
                   <div className="whitespace-pre-wrap">{msg.content}</div>

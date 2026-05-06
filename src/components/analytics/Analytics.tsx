@@ -169,10 +169,23 @@ export default function AnalyticsPage() {
                 const entries = Object.entries(d.tasks);
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${Math.max(4, h)}%` }}>
-                      {entries.map(([name, val]) => (
-                        <div key={name} style={{ height: total > 0 ? `${(val / total) * 100}%` : '0%', background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length] }} title={`${name}: ${val}min`} />
-                      ))}
+                    <div className="w-full relative rounded-t overflow-hidden" style={{ height: `${Math.max(4, h)}%` }}>
+                      {entries.map(([name, val], ei) => {
+                        const pct = total > 0 ? (val / total) * 100 : 0;
+                        const offset = entries.slice(0, ei).reduce((s, [, v]) => s + (total > 0 ? (v / total) * 100 : 0), 0);
+                        return (
+                          <div
+                            key={name}
+                            className="absolute left-0 right-0"
+                            style={{
+                              height: `${pct}%`,
+                              bottom: `${offset}%`,
+                              background: TASK_COLORS[taskNames.indexOf(name) % TASK_COLORS.length],
+                            }}
+                            title={`${name}: ${val}min`}
+                          />
+                        );
+                      })}
                     </div>
                     <span className="text-[10px] text-muted-foreground">{d.day}</span>
                     {total > 0 && <span className="text-[10px] text-muted-foreground">{total}m</span>}

@@ -132,6 +132,7 @@ export async function getWeeklyReview(weekStart: string): Promise<WeeklyReview |
     focusHours: data.focus_hours, budgetDental: data.budget_dental,
     budgetEnglish: data.budget_english, budgetReview: data.budget_review,
     budgetSport: data.budget_sport, goals: data.goals, adjust: data.adjust,
+    taskGoals: data.task_goals || '', progressGoals: data.progress_goals || '',
   };
 }
 
@@ -143,6 +144,7 @@ export async function getWeeklyReviews(): Promise<WeeklyReview[]> {
     focusHours: d.focus_hours, budgetDental: d.budget_dental,
     budgetEnglish: d.budget_english, budgetReview: d.budget_review,
     budgetSport: d.budget_sport, goals: d.goals, adjust: d.adjust,
+    taskGoals: d.task_goals || '', progressGoals: d.progress_goals || '',
   }));
 }
 
@@ -158,6 +160,8 @@ export async function saveWeeklyReview(review: WeeklyReview) {
     budget_sport: review.budgetSport,
     goals: review.goals,
     adjust: review.adjust,
+    task_goals: review.taskGoals,
+    progress_goals: review.progressGoals,
   });
 }
 

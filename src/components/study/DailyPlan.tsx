@@ -247,7 +247,8 @@ export default function DailyPlanPage() {
   const handleCompletionSave = (rate: number, reason: string) => {
     if (!plan || completionTaskIdx < 0) return;
     const task = plan.tasks[completionTaskIdx];
-    updateTask(completionTaskIdx, { ...task, completionRate: rate, reason, status: 'completed' });
+    const actualMinutes = (task.actualMinutes || 0) === 0 ? task.plannedMinutes : task.actualMinutes;
+    updateTask(completionTaskIdx, { ...task, actualMinutes, completionRate: rate, reason, status: 'completed' });
     setCompletionModalOpen(false);
   };
 
@@ -452,7 +453,7 @@ export default function DailyPlanPage() {
                                     value={task.plannedMinutes ?? ''}
                                     onChange={e => {
                                       const val = e.target.value;
-                                      updateTask(globalIdx, { ...task, plannedMinutes: val === '' ? 30 : parseInt(val) || 30 });
+                                      updateTask(globalIdx, { ...task, plannedMinutes: val === '' ? 0 : parseInt(val) || 0 });
                                     }}
                                   />
                                   {task.completionRate !== undefined && (

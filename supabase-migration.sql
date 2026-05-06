@@ -132,3 +132,7 @@ CREATE TABLE IF NOT EXISTS custom_schedules (
 );
 ALTER TABLE custom_schedules ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all" ON custom_schedules FOR ALL USING (true) WITH CHECK (true);
+
+-- 11. Add task_goals and progress_goals columns to weekly_reviews
+ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS task_goals TEXT DEFAULT '';
+ALTER TABLE weekly_reviews ADD COLUMN IF NOT EXISTS progress_goals TEXT DEFAULT '';
