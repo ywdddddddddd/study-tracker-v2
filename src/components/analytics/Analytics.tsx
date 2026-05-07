@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange } from '../../lib/db';
-import type { DailyPlan, WorkoutLog } from '../../types';
+import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange, getSleepRecords } from '../../lib/db';
+import type { DailyPlan, WorkoutLog, SleepRecord } from '../../types';
 import dayjs from 'dayjs';
 
 const TASK_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#84cc16'];
@@ -45,17 +45,19 @@ export default function AnalyticsPage() {
   const [gender, setGender] = useState('male');
   const [weekOffset, setWeekOffset] = useState(0);
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
+  const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
 
   useEffect(() => { loadData(); }, [weekOffset]);
 
   async function loadData() {
     const start = dayjs().startOf('week').add(1, 'day').subtract(weekOffset, 'week').format('YYYY-MM-DD');
     const end = dayjs(start).add(6, 'day').format('YYYY-MM-DD');
-    const [profile, plansData, foods, workouts] = await Promise.all([
+    const [profile, plansData, foods, workouts, sleepData] = await Promise.all([
       getOrCreateProfile(),
       getDailyPlansInRange(start, end),
       getFoodEntriesInRange(start, end),
       getWorkoutLogsInRange(start, end),
+      getSleepRecords(7).then(arr => arr.reverse()),
     ]);
     setWeight(profile.weight);
     setHeight(profile.height);
@@ -63,6 +65,7 @@ export default function AnalyticsPage() {
     setGender(profile.gender);
     setPlans(plansData);
     setWorkoutLogs(workouts);
+    setSleepRecords(sleepData);
     // Aggregate food calories by date
     const foodMap: Record<string, number> = {};
     for (const f of foods) {
@@ -350,6 +353,47 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sleep Chart */}
+      {sleepRecords.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">本周睡眠作息 ({sleepRecords[0]?.date.slice(5)} - {sleepRecords[sleepRecords.length-1]?.date.slice(5)})</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-48 relative">
+              <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="none">
+                {/* y-axis labels: 20:00 to 10:00 next day */}
+                {[22, 0, 2, 4, 6, 8].map(h => {
+                  const y = ((h + 2) / 14) * 100;
+                  return <text key={h} x="1" y={y} fontSize="3" fill="#9ca3af" textAnchor="start">{h}:00</text>;
+                })}
+                {/* x-axis: days */}
+                {/* Sleep zone background */}
+                <rect x="5" y={((22+2)/14)*100} width="93" height={100 - ((22+2)/14)*100 - (((8+2)/14)*100)} fill="rgba(59,130,246,0.05)" />
+                {sleepRecords.map((s, i) => {
+                  const x = 5 + (i / (sleepRecords.length - 1 || 1)) * 93;
+                  const bedH = parseFloat(s.bedTime.split(':')[0]) + parseFloat(s.bedTime.split(':')[1]) / 60;
+                  const wakeH = parseFloat(s.wakeTime.split(':')[0]) + parseFloat(s.wakeTime.split(':')[1]) / 60;
+                  const bedY = ((bedH + 2) / 14) * 100;
+                  const wakeY = ((wakeH + 2) / 14) * 100;
+                  return (
+                    <g key={s.id}>
+                      {/* Sleep bar */}
+                      <rect x={x-1.5} y={bedY} width="3" height={wakeY - bedY} fill="#3b82f6" rx="1" opacity="0.7">
+                        <title>{s.date}: {s.bedTime}→{s.wakeTime} ({Math.floor(s.duration/60)}h{s.duration%60}m) ★{s.quality}</title>
+                      </rect>
+                      {/* Quality dot */}
+                      <circle cx={x} cy={bedY} r={1.5 + s.quality * 0.5} fill={s.quality >= 4 ? '#22c55e' : s.quality >= 3 ? '#f59e0b' : '#ef4444'} />
+                    </g>
+                  );
+                })}
+              </svg>
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                {sleepRecords.map(s => <span key={s.id}>{s.date.slice(5)}</span>)}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

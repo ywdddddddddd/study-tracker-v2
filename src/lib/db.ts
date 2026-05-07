@@ -258,6 +258,18 @@ export async function addSleepRecord(record: Omit<SleepRecord, 'id'>) {
   if (error) throw error;
 }
 
+export async function deleteSleepRecord(id: number) {
+  await supabase.from('sleep_records').delete().eq('id', id);
+}
+
+export async function updateSleepRecord(record: SleepRecord) {
+  const { error } = await supabase.from('sleep_records').update({
+    date: record.date, bed_time: record.bedTime, wake_time: record.wakeTime,
+    duration: record.duration, quality: record.quality, note: record.note,
+  }).eq('id', record.id);
+  if (error) throw error;
+}
+
 export async function bulkPutSleepRecords(records: SleepRecord[]) {
   if (records.length === 0) return;
   const rows = records.map(r => ({

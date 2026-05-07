@@ -22,6 +22,7 @@ export default function NutritionPage() {
   const [scheduleData, setScheduleData] = useState<{ date: string; actual: number; target: number }[]>([]);
   // Search & sort
   const [foodSearch, setFoodSearch] = useState('');
+  const [foodTab, setFoodTab] = useState<string>('top8');
 
   useEffect(() => { loadData(); }, [date]);
   useEffect(() => { loadCustomFoods(); }, []);
@@ -32,6 +33,10 @@ export default function NutritionPage() {
     const profile = await getOrCreateProfile();
     const macros = calculateMacros(profile);
     setTargets(macros);
+    // Track food usage from all loaded entries for Top8
+    for (const e of data) {
+      if (e.name) incrementFoodUsage(e.name);
+    }
   }
 
   async function loadCustomFoods() {
@@ -312,34 +317,58 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
             />
             <Input type="number" placeholder="重量(g)" className="w-24" value={newEntry.weight || ''} onChange={e => updateWeight(parseFloat(e.target.value) || 0)} />
           </div>
-          {/* Top 8 sidebar */}
-          {!foodSearch && top8.length > 0 && (
-            <div className="flex gap-1 flex-wrap border rounded-lg p-2 bg-muted/30">
-              <span className="text-xs text-muted-foreground w-full mb-1">🔥 常用:</span>
-              {top8.map(f => (
-                <button key={f.name} onClick={() => selectPresetFood(f.name)} className="text-xs px-2 py-1 rounded bg-background border hover:bg-primary/10 transition-colors">
-                  {f.name}
+          {/* Category tabs + grid */}
+          <div className="flex gap-1 flex-wrap border-b pb-2">
+            {[
+              { key: 'top8', label: '🔥 Top8' },
+              { key: 'protein', label: '蛋白质' },
+              { key: 'carb', label: '碳水' },
+              { key: 'veg', label: '蔬菜' },
+              { key: 'fat', label: '脂肪' },
+              { key: 'other', label: '其它' },
+            ].map(t => (
+              <button key={t.key} onClick={() => { setFoodTab(t.key); setFoodSearch(''); }}
+                className={`text-xs px-3 py-1 rounded-full transition-colors ${foodTab === t.key ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted-foreground/20'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-1 max-h-40 overflow-y-auto">
+            {foodTab === 'top8' ? (
+              top8.length > 0 ? top8.map(f => (
+                <button key={f.name} onClick={() => selectPresetFood(f.name)}
+                  className="text-xs p-2 rounded border bg-muted/20 hover:bg-primary/10 text-left transition-colors">
+                  <div className="font-medium">{f.name}</div>
+                  <div className="text-[10px] text-muted-foreground">{f.unit} | {f.calories}kcal</div>
                 </button>
-              ))}
-            </div>
-          )}
-          {/* Filtered food list */}
-          {(foodSearch || top8.length === 0) && (
-            <div className="max-h-32 overflow-y-auto border rounded-lg p-1 space-y-0.5">
+              )) : (
+                <p className="col-span-full text-xs text-muted-foreground text-center py-4">暂无常用食物，添加后这里会显示</p>
+              )
+            ) : (
+              allFoods.filter(f => (foodTab === 'all' || f.category === foodTab)).map(f => (
+                <button key={f.name} onClick={() => selectPresetFood(f.name)}
+                  className="text-xs p-2 rounded border bg-muted/20 hover:bg-primary/10 text-left transition-colors">
+                  <div className="font-medium">{f.name}</div>
+                  <div className="text-[10px] text-muted-foreground">{f.unit} | {f.calories}kcal</div>
+                </button>
+              ))
+            )}
+          </div>
+          {/* Search bar */}
+          <Input
+            placeholder="🔍 搜索食物 (名称/拼音/首字母)"
+            value={foodSearch}
+            onChange={e => { setFoodSearch(e.target.value); setSelectedFood(''); }}
+          />
+          {foodSearch && (
+            <div className="max-h-24 overflow-y-auto border rounded-lg p-1 space-y-0.5">
               {filteredFoods.map(f => (
-                <button
-                  key={f.name}
-                  onClick={() => { selectPresetFood(f.name); setFoodSearch(''); }}
-                  className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors ${selectedFood === f.name ? 'bg-primary/10 font-medium' : ''}`}
-                >
-                  <span>{f.name}</span>
-                  <span className="text-muted-foreground ml-2 text-xs">{f.unit} | {f.calories}kcal</span>
-                  <span className="text-[10px] text-muted-foreground ml-1">({catLabel[f.category]})</span>
+                <button key={f.name} onClick={() => { selectPresetFood(f.name); setFoodSearch(''); }}
+                  className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors">
+                  {f.name} <span className="text-muted-foreground text-xs">{f.unit} | {f.calories}kcal</span>
                 </button>
               ))}
-              {filteredFoods.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">无匹配食物，请手动输入</p>
-              )}
+              {filteredFoods.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">无匹配</p>}
             </div>
           )}
           <div className="flex gap-2 flex-wrap">
