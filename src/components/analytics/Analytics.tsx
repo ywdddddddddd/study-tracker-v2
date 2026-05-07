@@ -10,9 +10,6 @@ import {
 } from 'chart.js';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler);
-// Set safe global defaults (don't touch the `animation` root object directly)
-ChartJS.defaults.plugins.tooltip = { enabled: true, mode: 'index', intersect: false } as any;
-ChartJS.defaults.font = { family: '-apple-system, BlinkMacSystemFont, sans-serif' } as any;
 
 const TASK_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#84cc16'];
 const TASK_COLORS_SOFT = ['rgba(59,130,246,0.7)', 'rgba(239,68,68,0.7)', 'rgba(34,197,94,0.7)', 'rgba(245,158,11,0.7)', 'rgba(168,85,247,0.7)', 'rgba(236,72,153,0.7)', 'rgba(6,182,212,0.7)', 'rgba(132,204,22,0.7)'];
@@ -156,10 +153,12 @@ export default function AnalyticsPage() {
   const chartOpts = () => ({
     responsive: true, maintainAspectRatio: false,
     animation: { duration: 800, easing: 'easeOutQuart' as const },
-    plugins: { legend: { position: 'bottom' as const, labels: { font: { size: 10 }, boxWidth: 12, padding: 8, usePointStyle: true } } },
+    plugins: {
+      tooltip: { enabled: true, mode: 'index' as const, intersect: false },
+      legend: { position: 'bottom' as const, labels: { font: { size: 10 }, boxWidth: 12, padding: 8, usePointStyle: true } },
+    },
     scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 9 } }, beginAtZero: true } },
   });
-  const animOpts = { animation: { duration: 800, easing: 'easeOutQuart' as const } };
 
   return (
     <div className="space-y-6 animate-in">
@@ -175,7 +174,7 @@ export default function AnalyticsPage() {
           <CardContent>
             {pieValues.reduce((a, b) => a + b, 0) > 0 ? (
               <div className="h-48">
-                <Doughnut data={{ labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: TASK_COLORS, borderWidth: 0 }] }} options={{ ...chartOpts(), ...animOpts, cutout: '55%', plugins: { ...chartOpts().plugins, legend: { position: 'right' as const, labels: { font: { size: 9 }, boxWidth: 10, padding: 4 } } } }} />
+                <Doughnut data={{ labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: TASK_COLORS, borderWidth: 0 }] }} options={{ ...chartOpts(), cutout: '55%', plugins: { ...chartOpts().plugins, legend: { position: 'right' as const, labels: { font: { size: 9 }, boxWidth: 10, padding: 4 } } } }} />
               </div>
             ) : <p className="text-muted-foreground text-center py-8">暂无数据</p>}
           </CardContent>
@@ -251,7 +250,6 @@ export default function AnalyticsPage() {
             <div className="h-48">
               <Line data={sleepChartData} options={{
                 ...chartOpts(),
-                ...animOpts,
                 scales: {
                   x: { ticks: { font: { size: 9 } } },
                   y: { min: 0, max: 14, ticks: { font: { size: 8 }, stepSize: 2, callback: (v: any) => { const h = (v - 2 + 24) % 24; return `${h}:00`; } } },
