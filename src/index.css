@@ -226,7 +226,31 @@
 .card-hover { transition: box-shadow 0.2s ease, transform 0.2s ease; }
 .card-hover:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .tab-content-enter { animation: scaleIn 0.2s ease-out; }
-.stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: opacity 0.3s ease, transform 0.3s ease, color 0.3s ease;
+}
+
+/* Staggered entrance for card children */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+
+/* Smooth number change */
+.number-transition {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Progress bar smooth fill */
+progress, .progress-bar {
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 @media (max-width: 640px) {
   .stat-value { font-size: 1.375rem; }

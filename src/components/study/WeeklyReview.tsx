@@ -68,8 +68,8 @@ export default function WeeklyReviewPage() {
       <CardContent className="space-y-4">
         {/* Budget progress bars */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {budgetCards.map(({ key, label, icon: Icon, color, bg, bar }) => (
-            <div key={key} className={`${bg} rounded-xl p-3 text-center`}>
+          {budgetCards.map(({ key, label, icon: Icon, color, bg, bar }, idx) => (
+            <div key={key} className={`${bg} rounded-xl p-3 text-center animate-scale-in stagger-${idx + 1}`}>
               <div className={`text-lg font-bold ${color}`}>{((review as any)?.[key] || 0).toFixed(1)}h</div>
               <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                 <Icon className="w-3 h-3" />{label}
