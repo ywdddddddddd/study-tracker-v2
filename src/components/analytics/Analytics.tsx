@@ -10,6 +10,7 @@ import {
 } from 'chart.js';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler);
+ChartJS.defaults.animation = { duration: 800, easing: 'easeOutQuart' } as any;
 
 const TASK_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#84cc16'];
 const TASK_COLORS_SOFT = ['rgba(59,130,246,0.7)', 'rgba(239,68,68,0.7)', 'rgba(34,197,94,0.7)', 'rgba(245,158,11,0.7)', 'rgba(168,85,247,0.7)', 'rgba(236,72,153,0.7)', 'rgba(6,182,212,0.7)', 'rgba(132,204,22,0.7)'];

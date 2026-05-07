@@ -99,14 +99,15 @@ export default function Dashboard() {
   const totalBurn = workoutBurn + bmr;
 
   const categoryLabel = (cat: string) => cat === 'english' ? '英语' : cat === 'dental' ? '专业课' : '其它';
-  const categoryColor = (cat: string) => cat === 'english' ? 'text-blue-600 bg-blue-50' : cat === 'dental' ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50';
+  const categoryColor = (cat: string) => cat === 'english' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50' : cat === 'dental' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50';
 
   // Get gym type from schedule or plan
   const gymType = scheduleToday?.gym || '休';
 
   return (
-    <div className="space-y-6 animate-in">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {/* Stats grid — responsive 2-col → 4-col */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard title="已完成任务" value={stats.completed} subtitle={`共 ${stats.total} 项`} />
         <StatCard title="完成率" value={`${stats.rate}%`} />
         <StatCard title="连续打卡" value={`${stats.streak} 天`} />
@@ -114,26 +115,26 @@ export default function Dashboard() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">今日概览 ({dayjs().format('M月D日')})</CardTitle>
+        <CardHeader className="pb-2 sm:pb-3">
+          <CardTitle className="text-base sm:text-lg">今日概览 ({dayjs().format('M月D日')})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {todayPlan && todayPlan.tasks.length > 0 ? (
             <>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium">健身:</span>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${gymType === '休' ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${gymType === '休' ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'}`}>
                   {gymType === '推' ? '推 (胸+肩+三头)' : gymType === '拉' ? '拉 (背+肩后束+二头)' : gymType === '腿' ? '腿 (股四+腘绳+臀)' : '休息日'}
                 </span>
               </div>
               <div>
                 <p className="text-sm font-medium mb-2">今日任务:</p>
-                <ul className="text-sm space-y-1">
+                <ul className="text-sm space-y-1.5">
                   {todayPlan.tasks.map((t, i) => (
                     <li key={i} className="flex items-start gap-2">
-                      <span>{t.status === 'completed' ? '✅' : t.status === 'failed' ? '❌' : t.status === 'doing' ? '🔥' : '⬜'}</span>
-                      <span className={t.status === 'completed' ? 'line-through opacity-60' : ''}>{t.text}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${categoryColor(t.category)}`}>{categoryLabel(t.category)}</span>
+                      <span className="shrink-0 mt-0.5">{t.status === 'completed' ? '✅' : t.status === 'failed' ? '❌' : t.status === 'doing' ? '🔥' : '⬜'}</span>
+                      <span className={`min-w-0 flex-1 ${t.status === 'completed' ? 'line-through opacity-60' : ''}`}>{t.text}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${categoryColor(t.category)}`}>{categoryLabel(t.category)}</span>
                     </li>
                   ))}
                 </ul>
@@ -141,26 +142,28 @@ export default function Dashboard() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>今日进度</span>
-                  <span>{todayDone}/{todayTotal}</span>
+                  <span className="font-medium">{todayDone}/{todayTotal}</span>
                 </div>
                 <Progress value={todayDone} max={todayTotal || 1} />
               </div>
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                <div>
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                <div className="rounded-lg bg-blue-50/50 dark:bg-blue-950/30 p-3">
                   <p className="text-xs text-muted-foreground mb-1">今日饮食</p>
-                  <p className="text-sm font-semibold text-blue-600">{foodTotal.calories} / {macros.calories} kcal</p>
-                  <p className="text-[10px] text-muted-foreground">P:{foodTotal.protein.toFixed(1)}g C:{foodTotal.carbs.toFixed(1)}g F:{foodTotal.fat.toFixed(1)}g</p>
+                  <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{foodTotal.calories} / {macros.calories} kcal</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">P:{foodTotal.protein.toFixed(1)}g C:{foodTotal.carbs.toFixed(1)}g F:{foodTotal.fat.toFixed(1)}g</p>
                 </div>
-                <div>
+                <div className="rounded-lg bg-orange-50/50 dark:bg-orange-950/30 p-3">
                   <p className="text-xs text-muted-foreground mb-1">今日消耗</p>
-                  <p className="text-sm font-semibold text-orange-600">{totalBurn} kcal</p>
-                  <p className="text-[10px] text-muted-foreground">运动 {workoutBurn} + BMR {bmr}</p>
-                  <p className="text-[10px] text-muted-foreground">缺口: {totalBurn - foodTotal.calories} kcal</p>
+                  <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">{totalBurn} kcal</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">运动 {workoutBurn} + BMR {bmr}</p>
+                  <p className={`text-[10px] font-medium mt-0.5 ${(totalBurn - foodTotal.calories) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                    缺口: {totalBurn - foodTotal.calories} kcal
+                  </p>
                 </div>
               </div>
             </>
           ) : (
-            <p className="text-muted-foreground">今天暂无任务记录，请前往「每日计划」添加。</p>
+            <p className="text-muted-foreground text-center py-6">今天暂无任务记录，请前往「每日计划」添加。</p>
           )}
         </CardContent>
       </Card>
