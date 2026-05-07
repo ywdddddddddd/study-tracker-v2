@@ -5,149 +5,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useAI } from '../../hooks/useAI';
-import { getOrCreateProfile, calculateMacros, type Task, type DailyPlan, type WeightRecord, type SleepRecord, type FoodEntry, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getAllDailyPlans, getWeeklyReview } from '../../lib/db';
+import { getOrCreateProfile, calculateMacros, type Task, type FoodEntry, getDailyPlan, saveDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getWeeklyReview, getGymSchedules } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
+import { GYM_SCHEDULE } from '../../data/presets';
 import dayjs from 'dayjs';
-import { CheckSquare, Brain, Calendar } from 'lucide-react';
+import { CheckSquare, Brain, Calendar, Send, Sun, Moon } from 'lucide-react';
 
-const AGENT_PROMPTS: Record<string, string> = {
-  daily_summary: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
+const SYSTEM_PROMPT = `你是wen的AI日程助手，精通学习科学、运动营养学和认知心理学。
 
-你的核心能力：
-1. 分析用户每日/每周的执行数据（学习、健身、饮食、体重）
-2. 诊断低效根源
-3. 给出具体的明日优化建议
-
-分析原则：
-- 学习：关注"提取率"而非"投入时长"
-- 健身：关注"渐进超负荷"
-- 饮食：关注"热量赤字+蛋白质达标"
-- 体重：关注周趋势而非日波动
-
-输出格式：
-1. 【数据概览】用1-2句话总结关键数字
-2. 【问题诊断】指出1-2个最核心的问题
-3. 【优化建议】给出2-3条具体、可执行的建议`,
-  weekly_summary: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
-
-你的核心能力：
-1. 分析用户本周的执行数据（学习、健身、饮食、体重）
-2. 诊断低效根源
-3. 给出下周优化方案
+你的能力：
+1. /饮食 — 分析饮食摄入数据，诊断营养问题，给出具体餐食建议
+2. /健身 — 分析训练数据，评估渐进超负荷，给出训练调整建议
+3. /学习 — 分析学习效率，诊断低效根源，给出学习方法优化
+4. /日程 — 基于本周预算配额，生成优化后的明日/下周完整安排
+5. /日 or /周 — 日常/周度综合总结分析
+6. /分析 — 全链条分析：饮食→健身→学习→日程安排，聚合后再执行
 
 分析原则：
 - 学习：关注"提取率"而非"投入时长"
 - 健身：关注"渐进超负荷"
-- 饮食：关注"热量赤字+蛋白质达标"
+- 饮食：关注"热量赤字+蛋白质达标"，蛋白质按每公斤目标体重2.2g
 - 体重：关注周趋势而非日波动
 
-输出格式：
-1. 【本周数据概览】用1-2句话总结关键数字
-2. 【本周问题诊断】指出1-2个最核心的问题
-3. 【下周优化方案】给出2-3条具体、可执行的建议`,
-  adjustment: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
-
-你的核心能力：
-1. 基于用户当前数据生成优化后的明日完整安排
-2. 参考本周预算配额，智能分配学习任务时间
-3. 根据健身日程推荐训练方案
-4. 根据饮食目标推荐具体餐食
-
-生成原则：
-- 根据本周预算追踪数据，为每个科目分配合理的学习时间
-- 健身日和学习日的任务量应该有区别
-- 饮食建议要具体到餐食和数量
-- 保持英语/专业课/其它的合理比例
-
-输出格式：
-1. 【明日日程建议】列出优化后的任务列表，每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式输出
-2. 【饮食建议】给出早餐/午餐/晚餐/加餐的具体食物建议
-3. 【训练建议】基于当天健身日程给出训练重点`,
-  auto_setup: `你是一位高效的个人效能管理AI教练，精通学习科学、运动营养学和认知心理学。
-
-你需要为用户生成明日的完整安排。
-
-生成原则：
-- 严格参考本周预算配额数据，精确分配各科目时间
-- 例如：专业课配额12h/周，已用Xh，剩余Yh，剩余Z天 → 每天应分配(Y/Z)h
-- 健身日和休息日的学习任务量应有差异
-- 饮食建议需具体到每餐的食物和数量，参考用户的饮食习惯
-- 训练安排参考健身日程表
-
-输出格式（必须严格遵守）：
-1. 【明日学习任务】
-每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式输出
-2. 【明日饮食安排】
-早餐: ... | 午餐: ... | 晚餐: ... | 加餐: ...
-3. 【明日训练安排】
-参考健身日程，给出训练重点和具体建议`,
-  nutrition: `你是一位运动营养学专家，精通减脂期饮食规划。
-
-你的核心能力：
-1. 分析用户每日/每周的饮食数据
-2. 诊断营养摄入问题
-3. 给出具体的饮食调整建议
-
-分析原则：
-- 蛋白质：每公斤目标体重2.2g
-- 热量赤字：TDEE - 500~1000 kcal
-- 食物质量：优先全食物，控制加工食品
-- 进餐时机：训练前后营养分配
-
-输出格式：
-1. 【饮食数据概览】总结今日/本周关键数字
-2. 【问题诊断】指出营养摄入问题
-3. 【优化建议】给出具体饮食调整方案`,
-  fitness: `你是一位力量训练和体能训练专家，精通渐进超负荷和周期化训练。
-
-你的核心能力：
-1. 分析用户训练数据
-2. 诊断训练问题
-3. 给出训练调整建议
-
-分析原则：
-- 渐进超负荷：逐步增加重量/次数/容量
-- 恢复管理：关注训练频率和休息日质量
-- 动作质量：优先控制，其次重量
-- 有氧安排：与力量训练的时间分配
-
-输出格式：
-1. 【训练数据概览】总结训练情况
-2. 【问题诊断】指出训练问题
-3. 【优化建议】给出具体训练调整方案`,
-  study: `你是一位学习科学专家，精通认知心理学和高效学习法。
-
-你的核心能力：
-1. 分析用户学习数据
-2. 诊断学习效率问题
-3. 给出学习方法优化建议
-
-分析原则：
-- 主动回忆 > 重复阅读
-- 分散学习 > 集中学习
-- 交错练习 > 单一练习
-- 深度加工 > 表面加工
-
-输出格式：
-1. 【学习数据概览】总结学习情况
-2. 【问题诊断】指出学习效率问题
-3. 【优化建议】给出具体学习方法改进`,
-};
+输出要求：
+- 用Markdown格式，分结构清晰的章节
+- 生成日程时，每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式
+- 饮食建议具体到每餐的食物和数量
+- 训练安排参考健身日程表`;
 
 export default function AIAssistant() {
   const [conversations, setConversations] = useState<{ role: 'user' | 'assistant'; content: string; reasoning?: string }[]>([]);
-  const [mode, setMode] = useState<'daily_summary' | 'weekly_summary' | 'adjustment' | 'nutrition' | 'fitness' | 'study'>('daily_summary');
   const [adoptModalOpen, setAdoptModalOpen] = useState(false);
   const [suggestedTasks, setSuggestedTasks] = useState<Task[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [showReasoning, setShowReasoning] = useState<Set<number>>(new Set());
-  const [outputTab, setOutputTab] = useState<'all' | 'study' | 'diet' | 'training'>('all');
   const { isLoading, content, reasoning, sendMessage, abort, setContent, setReasoning } = useAI();
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Date range: default from project start (5/5) to today
+  const inputRef = useRef<HTMLInputElement>(null);
   const [dataStart, setDataStart] = useState('2026-05-05');
   const [dataEnd, setDataEnd] = useState(dayjs().format('YYYY-MM-DD'));
+  const [scope, setScope] = useState<'day' | 'week'>('day');
+  const [userInput, setUserInput] = useState('');
 
+  // CoT fix: track reasoning per conversation index
   useEffect(() => {
     if (content || reasoning) {
       setConversations(prev => {
@@ -160,200 +60,165 @@ export default function AIAssistant() {
     }
   }, [content, reasoning]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversations]);
+  useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [conversations]);
 
   function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
-    let total = 0;
+    let cardioTotal = 0;
     for (const ex of w.exercises) {
       if (ex.kind === 'cardio' && ex.cardioParams) {
-        const speed = ex.cardioParams.speed || 0;
-        const incline = ex.cardioParams.incline || 0;
+        const speed = ex.cardioParams.speed || 0; const incline = ex.cardioParams.incline || 0;
         const duration = ex.cardioParams.duration || 0;
         const mets = (speed * 0.2 + incline * 0.9 + 3.5) / 3.5;
-        total += mets * weightKg * (duration / 60);
-      } else if (ex.kind === 'strength') {
-        const strengthCount = w.exercises.filter(e => e.kind === 'strength').length || 1;
-        const share = (w.duration || 60) / strengthCount;
-        total += 4.5 * weightKg * (share / 60);
+        cardioTotal += mets * weightKg * (duration / 60);
       }
     }
-    return Math.round(total);
+    const cd = w.exercises.filter(e => e.kind === 'cardio').reduce((s, e) => s + (e.cardioParams?.duration || 0), 0);
+    const sd = Math.max(0, (w.duration || 0) - cd);
+    return Math.round(cardioTotal + (sd > 0 ? 4.5 * weightKg * (sd / 60) : 0));
   }
-
-  function calculateBMR(weight: number, height: number, age: number, gender: string): number {
-    if (gender === 'male') {
-      return Math.round(10 * weight + 6.25 * height - 5 * age + 5);
-    }
-    return Math.round(10 * weight + 6.25 * height - 5 * age - 161);
+  function calculateBMR(w: number, h: number, a: number, g: string): number {
+    return g === 'male' ? Math.round(10*w + 6.25*h - 5*a + 5) : Math.round(10*w + 6.25*h - 5*a - 161);
   }
 
   async function gatherContext(): Promise<string> {
     const today = dayjs().format('YYYY-MM-DD');
     const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+    const twoDaysAgo = dayjs().subtract(2, 'day').format('YYYY-MM-DD');
 
-    const [profile, todayPlan, yesterdayPlan, rangePlans, foodEntries, workoutLogs, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, allPlans, weekReview] = await Promise.all([
-      getOrCreateProfile(),
-      getDailyPlan(today),
-      getDailyPlan(yesterday),
-      getDailyPlansInRange(dataStart, dataEnd),
-      getFoodEntries(today),
-      getWorkoutLog(today),
-      getFoodEntriesInRange(dataStart, dataEnd),
-      getWorkoutLogsInRange(dataStart, dataEnd),
-      getWeightRecords('desc').then(arr => arr.slice(0, 14)),
-      getSleepRecords(14).then(arr => arr.reverse()),
-      getAllDailyPlans(),
+    const [profile, todayPlan, rangePlans, foodEntries, workoutLogs,
+      yesterdayFoods, twoDaysAgoFoods, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, weekReview, gymOverrides] = await Promise.all([
+      getOrCreateProfile(), getDailyPlan(today),
+      getDailyPlansInRange(dataStart, dataEnd), getFoodEntries(today), getWorkoutLog(today),
+      getFoodEntries(yesterday), getFoodEntries(twoDaysAgo),
+      getFoodEntriesInRange(dataStart, dataEnd), getWorkoutLogsInRange(dataStart, dataEnd),
+      getWeightRecords('desc').then(a => a.slice(0, 14)), getSleepRecords(14).then(a => a.reverse()),
       getWeeklyReview(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD')),
+      getGymSchedules().catch(() => []),
     ]);
 
     const macros = calculateMacros(profile);
-    const foodTotal = foodEntries.reduce((acc: {c: number, p: number, f: number, cb: number}, e: {calories: number, protein: number, fat: number, carbs: number}) => ({ c: acc.c + e.calories, p: acc.p + e.protein, f: acc.f + e.fat, cb: acc.cb + e.carbs }), { c: 0, p: 0, f: 0, cb: 0 });
-    const workoutBurn = workoutLogs ? calcWorkoutBurn(workoutLogs, profile.weight) : 0;
     const bmr = calculateBMR(profile.weight, profile.height, profile.age, profile.gender);
 
-    // Range aggregates
-    const rangeFoodTotal = rangeFoodEntries.reduce((acc: {c: number, p: number, f: number, cb: number}, e: {calories: number, protein: number, fat: number, carbs: number}) => ({ c: acc.c + e.calories, p: acc.p + e.protein, f: acc.f + e.fat, cb: acc.cb + e.carbs }), { c: 0, p: 0, f: 0, cb: 0 });
-    const rangeWorkoutBurn = rangeWorkouts.reduce((s: number, w: WorkoutLog) => s + calcWorkoutBurn(w, profile.weight), 0);
+    const foodTotal = (entries: FoodEntry[]) => entries.reduce((a, e) => ({ c: a.c + e.calories, p: a.p + e.protein, f: a.f + e.fat, cb: a.cb + e.carbs }), { c: 0, p: 0, f: 0, cb: 0 });
+    const ft = foodTotal(foodEntries);
+    const workoutBurn = workoutLogs ? calcWorkoutBurn(workoutLogs, profile.weight) : 0;
 
-    // Range study stats
-    const rangeCompleted = rangePlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'completed').length, 0);
-    const rangeFailed = rangePlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'failed').length, 0);
-    const rangeTotalFocus = rangePlans.reduce((s: number, p: DailyPlan) => s + p.totalFocusMinutes, 0);
+    const rangeFT = foodTotal(rangeFoodEntries);
+    const rangeWB = rangeWorkouts.reduce((s: number, w: WorkoutLog) => s + calcWorkoutBurn(w, profile.weight), 0);
 
-    // All time stats
-    const totalCompletedAllTime = allPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'completed').length, 0);
-    const totalFailedAllTime = allPlans.reduce((s: number, p: DailyPlan) => s + p.tasks.filter((t: Task) => t.status === 'failed').length, 0);
-    const totalFocusAllTime = allPlans.reduce((s: number, p: DailyPlan) => s + p.totalFocusMinutes, 0);
-
-    // Weight trend
-    const weightTrend = weightRecords.length >= 2
-      ? weightRecords[weightRecords.length - 1].weight - weightRecords[0].weight
-      : 0;
-
-    // Weekly budget tracking
-    const catBudget: Record<string, number> = {
-      dental: (weekReview?.budgetDental || 10.5) * 60,
-      english: (weekReview?.budgetEnglish || 7) * 60,
-      other: (weekReview?.budgetReview || 2) * 60,
-    };
-    // Calculate actual time used per category from range plans
-    const catUsed: Record<string, number> = { dental: 0, english: 0, other: 0 };
-    for (const p of rangePlans) {
-      for (const t of p.tasks) {
-        if (t.status === 'completed') {
-          catUsed[t.category] = (catUsed[t.category] || 0) + (t.actualMinutes || 0);
-        }
-      }
-    }
-    const daysRecorded = rangePlans.length;
-    const daysRemaining = Math.max(1, 7 - daysRecorded);
-    const budgetLines = ['dental', 'english', 'other'].map(cat => {
-      const used = Math.round(catUsed[cat] || 0);
-      const total = catBudget[cat] || 0;
-      const remaining = Math.max(0, total - used);
-      const perDay = Math.round(remaining / daysRemaining);
-      return `- ${cat === 'dental' ? '专业课' : cat === 'english' ? '英语' : '其它'}: 已用${used}min/${total}min, 剩余${remaining}min, 建议每日${perDay}min`;
+    // Gym schedule
+    const overrideMap: Record<string, string> = {};
+    for (const o of gymOverrides) overrideMap[o.date] = o.gym;
+    const gymScheduleText = GYM_SCHEDULE.slice(0, 7).map(s => {
+      const gym = overrideMap[s.date] || s.gym;
+      return `- ${s.date} ${s.weekday}: ${gym}`;
     }).join('\n');
 
-    // Per-meal food details
-    const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
-    const foodByMeal: Record<string, FoodEntry[]> = {};
-    for (const f of foodEntries) {
-      if (!foodByMeal[f.meal]) foodByMeal[f.meal] = [];
-      foodByMeal[f.meal].push(f);
-    }
+    // Food details helper
+    const mealLabels: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
+    const formatFoods = (entries: FoodEntry[], label: string) => {
+      if (entries.length === 0) return `${label}: 无记录`;
+      const byMeal: Record<string, FoodEntry[]> = {};
+      for (const f of entries) { if (!byMeal[f.meal]) byMeal[f.meal] = []; byMeal[f.meal].push(f); }
+      return Object.entries(byMeal).map(([m, items]) => {
+        const t = items.reduce((s, e) => s + e.calories, 0);
+        return `${mealLabels[m] || m} (${t}kcal):\n${items.map(e => `  - ${e.name} ${e.weight}g (${e.calories}kcal, P${e.protein}g C${e.carbs}g F${e.fat}g)`).join('\n')}`;
+      }).join('\n') || `${label}: 无记录`;
+    };
 
-    // Per-task efficiency details for today
-    const todayTasksDetail = todayPlan ? todayPlan.tasks.map((t: Task) => {
-      const eff = t.completionRate !== undefined ? `${t.completionRate}%` : (t.status === 'completed' ? '100%' : 'N/A');
-      const reason = t.reason ? ` [原因: ${t.reason}]` : '';
-      return `- ${t.text}: ${t.status === 'completed' ? '✅完成' : t.status === 'failed' ? '❌失败' : t.status === 'doing' ? '🔥进行中' : '⬜待做'} | 效率${eff} | 实际${t.actualMinutes}min/预计${t.plannedMinutes}min${reason}`;
-    }).join('\n') : '无记录';
+    // Budget tracking
+    const catBudget: Record<string, number> = { dental: (weekReview?.budgetDental || 10.5) * 60, english: (weekReview?.budgetEnglish || 7) * 60, other: (weekReview?.budgetReview || 2) * 60 };
+    const catUsed: Record<string, number> = { dental: 0, english: 0, other: 0 };
+    for (const p of rangePlans) for (const t of p.tasks) if (t.status === 'completed') catUsed[t.category] = (catUsed[t.category] || 0) + (t.actualMinutes || 0);
+    const daysRemaining = Math.max(1, 7 - rangePlans.length);
+    const budgetLines = ['dental', 'english', 'other'].map(cat => {
+      const u = Math.round(catUsed[cat] || 0), t = catBudget[cat] || 0, r = Math.max(0, t - u);
+      return `- ${cat === 'dental' ? '专业课' : cat === 'english' ? '英语' : '其它'}: 已用${u}min/${t}min, 剩余${r}min, 建议每日${Math.round(r/daysRemaining)}min`;
+    }).join('\n');
 
-    return `
-=== 用户档案 ===
+    const weightTrend = weightRecords.length >= 2 ? weightRecords[weightRecords.length-1].weight - weightRecords[0].weight : 0;
+
+    return `=== 用户档案 ===
 性别：${profile.gender === 'male' ? '男' : '女'}，年龄${profile.age}岁，身高${profile.height}cm，当前体重${profile.weight}kg
 目标体重：${profile.targetWeight}kg，目标体脂：${profile.targetBodyFat}%
-基础代谢(BMR)：${bmr} kcal/天
-每日目标热量：${macros.calories}kcal，蛋白质${macros.protein}g，碳水${macros.carbs}g，脂肪${macros.fat}g
+BMR：${bmr} kcal/天，目标热量：${macros.calories}kcal，P${macros.protein}g C${macros.carbs}g F${macros.fat}g
 
-=== 今日(${today})学习 ===
-${todayTasksDetail}
-总专注时长：${todayPlan?.totalFocusMinutes || 0}min
-复盘成果：${todayPlan?.conquered || '无'}
-难点：${todayPlan?.difficulty || '无'}
-调整：${todayPlan?.adjust || '无'}
+=== 健身日程表（近7天）===
+${gymScheduleText}
 
-=== 昨日(${yesterday})学习 ===
-${yesterdayPlan ? yesterdayPlan.tasks.map((t: Task) => `- ${t.text}: ${t.status === 'completed' ? '✅完成' : '❌失败'} (${t.actualMinutes}min)${t.completionRate !== undefined ? ` 效率${t.completionRate}%` : ''}`).join('\n') : '无记录'}
-复盘：${yesterdayPlan?.conquered || '无'}
+=== 今日学习(${today}) ===
+${todayPlan ? todayPlan.tasks.map((t: Task) => {
+  const eff = t.completionRate !== undefined ? `${t.completionRate}%` : (t.status === 'completed' ? '100%' : 'N/A');
+  return `- ${t.text}: ${t.status === 'completed' ? '✅' : t.status === 'failed' ? '❌' : '⬜'} 效率${eff} 实际${t.actualMinutes}min/预计${t.plannedMinutes}min${t.reason ? ` [${t.reason}]` : ''}`;
+}).join('\n') : '无记录'}
+总专注：${todayPlan?.totalFocusMinutes || 0}min | 复盘：${todayPlan?.conquered || '无'} | 难点：${todayPlan?.difficulty || '无'}
 
-=== 今日饮食详情 ===
-${['breakfast', 'lunch', 'dinner', 'snack'].map(m => {
-  const items = foodByMeal[m] || [];
-  if (items.length === 0) return '';
-  const total = items.reduce((s, e) => s + e.calories, 0);
-  return `${(mealLabels as any)[m]} (${total}kcal):\n${items.map(e => `  - ${e.name} ${e.weight}g (${e.calories}kcal, P${e.protein}g C${e.carbs}g F${e.fat}g)`).join('\n')}`;
-}).filter(Boolean).join('\n') || '无记录'}
-今日总计：${foodTotal.c} kcal (P${foodTotal.p.toFixed(1)} C${foodTotal.cb.toFixed(1)} F${foodTotal.f.toFixed(1)})
-目标摄入：${macros.calories}kcal (P${macros.protein}g C${macros.carbs}g F${macros.fat}g)
+=== 今日饮食 ===
+${formatFoods(foodEntries, '今日')}
+今日总计：${ft.c}kcal P${ft.p.toFixed(1)} C${ft.cb.toFixed(1)} F${ft.f.toFixed(1)}
+目标：${macros.calories}kcal P${macros.protein}g C${macros.carbs}g F${macros.fat}g
+
+=== 昨日饮食(${yesterday}) ===
+${formatFoods(yesterdayFoods, '昨日')}
+
+=== 前日饮食(${twoDaysAgo}) ===
+${formatFoods(twoDaysAgoFoods, '前日')}
 
 === 今日训练 ===
-${workoutLogs ? `类型：${workoutLogs.type}，时长${workoutLogs.duration}min，运动消耗约${workoutBurn}kcal，总消耗(含BMR)约${workoutBurn + bmr}kcal
-动作详情：
-${workoutLogs.exercises.map(ex => {
-  if (ex.kind === 'cardio') return `  - ${ex.name}: 有氧 ${ex.cardioParams?.duration || 0}min @${ex.cardioParams?.speed || 0}km/h`;
-  return `  - ${ex.name}: 力量 ${ex.sets.length}组 (${ex.sets.map(s => `${s.reps}次${s.weight > 0 ? `${s.weight}kg` : ''}`).join(', ')})`;
-}).join('\n')}` : '无训练记录'}
+${workoutLogs ? `类型：${workoutLogs.type}，时长${workoutLogs.duration}min，运动消耗${workoutBurn}kcal，总消耗${workoutBurn + bmr}kcal
+动作：
+${workoutLogs.exercises.map(ex => ex.kind === 'cardio' ? `  - ${ex.name}: 有氧 ${ex.cardioParams?.duration || 0}min @${ex.cardioParams?.speed || 0}km/h` : `  - ${ex.name}: 力量 ${ex.sets.length}组 (${ex.sets.map(s => `${s.reps}次${s.weight>0?`${s.weight}kg`:''}`).join(', ')})`).join('\n')}` : '无训练记录'}
 
-=== 日期范围统计(${dataStart}~${dataEnd}) ===
-记录天数：${rangePlans.length}
-完成任务：${rangeCompleted}
-失败任务：${rangeFailed}
-总专注时长：${rangeTotalFocus}min
-总饮食摄入：${rangeFoodTotal.c} kcal (P${rangeFoodTotal.p.toFixed(1)} C${rangeFoodTotal.cb.toFixed(1)} F${rangeFoodTotal.f.toFixed(1)})
-总训练消耗：${rangeWorkoutBurn} kcal
-预估总赤字：${rangeWorkoutBurn + bmr * rangePlans.length - rangeFoodTotal.c} kcal
+=== 范围统计(${dataStart}~${dataEnd}) ===
+记录：${rangePlans.length}天 | 完成任务：${rangePlans.reduce((s,p) => s + p.tasks.filter(t => t.status === 'completed').length, 0)} | 失败：${rangePlans.reduce((s,p) => s + p.tasks.filter(t => t.status === 'failed').length, 0)}
+总专注：${rangePlans.reduce((s,p) => s + p.totalFocusMinutes, 0)}min
+总摄入：${rangeFT.c}kcal P${rangeFT.p.toFixed(1)} C${rangeFT.cb.toFixed(1)} F${rangeFT.f.toFixed(1)}
+总训练消耗：${rangeWB}kcal | 预估赤字：${rangeWB + bmr*rangePlans.length - rangeFT.c}kcal
 
-=== 本周预算追踪 ===
-每周科目时间配额：
+=== 本周预算 ===
 ${budgetLines}
-周目标：
-${weekReview?.taskGoals || '无'}
-${weekReview?.progressGoals || '无'}
-${weekReview?.goals || '无'}
+目标：${weekReview?.taskGoals || '无'} | 进度：${weekReview?.progressGoals || '无'}
 运动配额：${weekReview?.budgetSport || 3.5}h/周
 
-=== 全部历史统计 ===
-总完成任务：${totalCompletedAllTime}
-总失败任务：${totalFailedAllTime}
-总专注时长：${totalFocusAllTime}min
+=== 体重（14天）===
+${weightRecords.map(w => `- ${w.date}: ${w.weight}kg${w.bodyFat?` (体脂${w.bodyFat}%)`:''}`).join('\n')}
+趋势：${weightTrend > 0 ? '↑' : weightTrend < 0 ? '↓' : '→'} ${Math.abs(weightTrend).toFixed(1)}kg
 
-=== 体重记录（最近14天）===
-${weightRecords.map((w: WeightRecord) => `- ${w.date}: ${w.weight}kg${w.bodyFat ? ` (体脂${w.bodyFat}%)` : ''}`).join('\n')}
-体重趋势：${weightTrend > 0 ? '上升' : weightTrend < 0 ? '下降' : '持平'} ${Math.abs(weightTrend).toFixed(1)}kg
-
-=== 睡眠记录（最近14天）===
-${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime}, ${Math.floor(s.duration / 60)}h${s.duration % 60}m, 质量${s.quality}/5`).join('\n')}
+=== 睡眠（14天）===
+${sleepRecords.map(s => `- ${s.date}: ${s.bedTime}→${s.wakeTime} ${Math.floor(s.duration/60)}h${s.duration%60}m ★${s.quality}`).join('\n')}
 `;
   }
 
-  async function handleSend() {
+  async function handleSend(text?: string) {
+    const input = text || userInput;
+    if (!input.trim() || isLoading) return;
     const ctx = await gatherContext();
-    const systemPrompt = AGENT_PROMPTS[mode] || AGENT_PROMPTS.daily_summary;
-    const userPrompt = mode === 'daily_summary' ? '请分析今日数据并给出优化建议' :
-      mode === 'weekly_summary' ? '请分析本周数据并给出下周优化方案' :
-      mode === 'adjustment' ? '请基于当前数据，生成优化后的明日日程，每条任务用「任务名|分类(english/dental/other)|预计分钟数」格式输出' :
-      mode === 'nutrition' ? '请分析今日/本周饮食数据并给出优化建议' :
-      mode === 'fitness' ? '请分析今日/本周训练数据并给出优化建议' :
-      '请分析今日/本周学习数据并给出优化建议';
 
-    setConversations(prev => [...prev, { role: 'user', content: userPrompt }]);
+    // Parse command
+    let cmd = 'daily_summary';
+    if (/\/饮食/.test(input)) cmd = 'nutrition';
+    else if (/\/健身/.test(input)) cmd = 'fitness';
+    else if (/\/学习/.test(input)) cmd = 'study';
+    else if (/\/日程|\/安排/.test(input)) cmd = 'adjustment';
+    else if (/\/周/.test(input)) cmd = 'weekly_summary';
+    else if (/\/日/.test(input)) cmd = 'daily_summary';
+    else if (/\/分析/.test(input)) cmd = 'auto_setup';
+
+    const cmdHints: Record<string, string> = {
+      nutrition: '请深入分析饮食数据，诊断营养问题，给出每餐具体食物调整建议',
+      fitness: '请分析训练数据，评估渐进超负荷进展，给出训练调整建议',
+      study: '请分析学习数据，诊断效率问题，给出学习方法优化建议',
+      adjustment: '请基于预算配额和健身日程，生成明日完整安排。学习任务用「任务名|分类|预计分钟数」格式，饮食具体到每餐食物，训练参考健身日程',
+      weekly_summary: '请综合本周所有数据做深度总结，给出下周优化方案',
+      daily_summary: `请做${scope === 'day' ? '今日' : '本周'}数据总览和优化建议`,
+      auto_setup: '请做全链条分析：先饮食→再健身→再学习→最后综合安排。每步独立分析完成后，最后汇总生成明日完整安排',
+    };
+
+    setConversations(prev => [...prev, { role: 'user', content: input }]);
+    setUserInput('');
     setContent('');
     setReasoning('');
-    await sendMessage(systemPrompt, `${userPrompt}\n\n${ctx}`);
+    await sendMessage(SYSTEM_PROMPT, `${cmdHints[cmd] || cmdHints.daily_summary}\n\n用户输入: ${input}\n\n${ctx}`);
   }
 
   function parseSuggestedTasks(text: string): Task[] {
@@ -363,15 +228,7 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
     while ((match = regex.exec(text)) !== null) {
       const category = match[2].trim() as 'english' | 'dental' | 'other';
       if (['english', 'dental', 'other'].includes(category)) {
-        tasks.push({
-          id: `ai-${Date.now()}-${tasks.length}`,
-          text: match[1].trim(),
-          category,
-          status: 'pending',
-          plannedMinutes: parseInt(match[3]),
-          actualMinutes: 0,
-          timerAccumulated: 0,
-        });
+        tasks.push({ id: `ai-${Date.now()}-${tasks.length}`, text: match[1].trim(), category, status: 'pending', plannedMinutes: parseInt(match[3]), actualMinutes: 0, timerAccumulated: 0 });
       }
     }
     return tasks;
@@ -381,10 +238,7 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
     const lastAssistant = [...conversations].reverse().find(c => c.role === 'assistant');
     if (!lastAssistant) return;
     const tasks = parseSuggestedTasks(lastAssistant.content);
-    if (tasks.length === 0) {
-      alert('未检测到可解析的任务，请确保AI输出中包含「任务名|分类|分钟数」格式的任务');
-      return;
-    }
+    if (tasks.length === 0) { alert('未检测到可解析的任务格式'); return; }
     setSuggestedTasks(tasks);
     setSelectedTasks(new Set(tasks.map((_, i) => i)));
     setAdoptModalOpen(true);
@@ -394,20 +248,8 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
     const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
     const existing = await getDailyPlan(tomorrow);
     const toAdopt = suggestedTasks.filter((_, i) => selectedTasks.has(i));
-    if (existing) {
-      const merged = [...existing.tasks, ...toAdopt];
-      await saveDailyPlan({ ...existing, tasks: merged });
-    } else {
-      await saveDailyPlan({
-        date: tomorrow,
-        tasks: toAdopt,
-        conquered: '',
-        difficulty: '',
-        adjust: '',
-        completion: '',
-        totalFocusMinutes: 0,
-      });
-    }
+    if (existing) { await saveDailyPlan({ ...existing, tasks: [...existing.tasks, ...toAdopt] }); }
+    else { await saveDailyPlan({ date: tomorrow, tasks: toAdopt, conquered: '', difficulty: '', adjust: '', completion: '', totalFocusMinutes: 0 }); }
     setAdoptModalOpen(false);
     alert(`✅ 已采纳 ${toAdopt.length} 项任务到明日计划`);
   }
@@ -418,24 +260,18 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
             <span>AI助手</span>
-            <div className="flex gap-1 ml-auto flex-wrap">
-              {[
-                { key: 'daily_summary', label: '日总结' },
-                { key: 'weekly_summary', label: '周总结' },
-                { key: 'adjustment', label: '调日程' },
-                { key: 'nutrition', label: '饮食' },
-                { key: 'fitness', label: '健身' },
-                { key: 'study', label: '学习' },
-              ].map(m => (
-                <Button key={m.key} variant={mode === m.key ? 'default' : 'outline'} size="sm" onClick={() => setMode(m.key as any)}>
-                  {m.label}
-                </Button>
-              ))}
+            {/* Day/Week toggle */}
+            <div className="flex items-center gap-1 ml-auto bg-muted rounded-lg p-0.5">
+              <button onClick={() => setScope('day')} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${scope === 'day' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted-foreground/10'}`}>
+                <Sun className="w-3 h-3 inline mr-1" />日
+              </button>
+              <button onClick={() => setScope('week')} className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${scope === 'week' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted-foreground/10'}`}>
+                <Moon className="w-3 h-3 inline mr-1" />周
+              </button>
             </div>
           </CardTitle>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Calendar className="w-3 h-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">数据范围:</span>
             <Input type="date" value={dataStart} onChange={e => setDataStart(e.target.value)} className="w-auto h-7 text-xs px-2" />
             <span className="text-xs text-muted-foreground">至</span>
             <Input type="date" value={dataEnd} onChange={e => setDataEnd(e.target.value)} className="w-auto h-7 text-xs px-2" />
@@ -446,57 +282,30 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
             {conversations.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
                 <p className="text-lg mb-2">👋 我是你的AI助手</p>
-                <p className="text-sm">选择上方模式，我会自动读取你的全部数据并给出深度分析建议。</p>
-                <p className="text-xs mt-2">当前模型: DeepSeek V4 Pro</p>
+                <p className="text-sm mb-1">输入 <code className="bg-muted px-1 rounded">/饮食</code> <code className="bg-muted px-1 rounded">/健身</code> <code className="bg-muted px-1 rounded">/学习</code> <code className="bg-muted px-1 rounded">/日程</code> <code className="bg-muted px-1 rounded">/分析</code> 开始</p>
+                <p className="text-xs text-muted-foreground">当前模型: DeepSeek V4 Pro</p>
               </div>
             )}
             {conversations.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[90%] rounded-lg px-4 py-2 text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                  {msg.role === 'assistant' && msg.reasoning && (
-                    <div className="mb-2">
-                      <button
-                        onClick={() => {
-                          const next = new Set(showReasoning);
-                          if (next.has(i)) next.delete(i); else next.add(i);
-                          setShowReasoning(next);
-                        }}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-1"
-                      >
-                        <Brain className="w-3 h-3" />
-                        {showReasoning.has(i) ? '隐藏思考过程' : '显示思考过程'}
-                      </button>
-                      {showReasoning.has(i) && (
-                        <div className="bg-background/50 rounded p-2 text-xs text-muted-foreground mb-2 border border-border/50 whitespace-pre-wrap">
-                          {msg.reasoning}
+                  {msg.role === 'assistant' ? (
+                    <>
+                      <div className="markdown-body text-sm">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      </div>
+                      {msg.reasoning && (
+                        <div className="mt-2 border-t pt-2">
+                          <button onClick={() => { const n = new Set(showReasoning); if (n.has(i)) n.delete(i); else n.add(i); setShowReasoning(n); }}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                            <Brain className="w-3 h-3" /> {showReasoning.has(i) ? '隐藏思考' : '查看思考'}
+                          </button>
+                          {showReasoning.has(i) && (
+                            <div className="mt-1 bg-background/50 rounded p-2 text-xs text-muted-foreground border whitespace-pre-wrap">{msg.reasoning}</div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
-                  {msg.role === 'assistant' && conversations.filter(c => c.role === 'assistant').length > 1 && (
-                    <div className="flex gap-1 mb-2 border-b pb-1">
-                      {[
-                        { key: 'all', label: '全部' },
-                        { key: 'study', label: '学习' },
-                        { key: 'diet', label: '饮食' },
-                        { key: 'training', label: '训练' },
-                      ].map(t => (
-                        <button
-                          key={t.key}
-                          onClick={() => setOutputTab(t.key as any)}
-                          className={`text-xs px-2 py-0.5 rounded ${outputTab === t.key ? 'bg-primary text-primary-foreground' : 'hover:bg-muted-foreground/10'}`}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {msg.role === 'assistant' ? (
-                    <div className="markdown-body text-sm">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
+                    </>
                   ) : (
                     <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
                   )}
@@ -506,39 +315,36 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
             {isLoading && (
               <div className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b pb-3 mb-2">
                 <div className="bg-muted rounded-lg px-4 py-2 text-sm">
-                  <span className="animate-pulse font-medium">{reasoning ? '🧠 深度思考中...' : '连接中...'}</span>
+                  <span className="animate-pulse font-medium">{reasoning ? '🧠 深度思考中...' : content ? '生成中...' : '连接中...'}</span>
                   {reasoning && (
-                    <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto border-t pt-2">
-                      {reasoning}
-                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto border-t pt-2">{reasoning}</div>
                   )}
                 </div>
               </div>
             )}
             <div ref={scrollRef} />
           </div>
+          {/* Input area */}
           <div className="flex gap-2 flex-wrap">
-            {mode === 'adjustment' && conversations.some(c => c.role === 'assistant') && !isLoading && (
+            {conversations.some(c => c.role === 'assistant') && !isLoading && (
               <Button variant="secondary" onClick={openAdopt} className="shrink-0">
-                <CheckSquare className="w-4 h-4 mr-1" /> 采纳AI建议
+                <CheckSquare className="w-4 h-4 mr-1" /> 采纳任务
               </Button>
             )}
-            <Button onClick={handleSend} disabled={isLoading} className="ml-auto">{isLoading ? '...' : '发送'}</Button>
-            {!isLoading && (
-              <Button variant="outline" size="sm" onClick={async () => {
-                setMode('adjustment');
-                // Trigger analysis+plan in one go
-                const ctx = await gatherContext();
-                const prompt = AGENT_PROMPTS.adjustment;
-                const userMsg = '请基于本周预算追踪数据，综合考虑学习进度、健身安排、饮食目标，生成明日完整安排（学习任务+饮食建议+训练计划）。学习任务用「任务名|分类|预计分钟数」格式输出。饮食建议给出具体餐食。';
-                setConversations(prev => [...prev, { role: 'user', content: '🎯 一键设置明日完整安排' }]);
-                setContent('');
-                setReasoning('');
-                await sendMessage(prompt, `${userMsg}\n\n${ctx}`);
-              }}>
-                🎯 一键设明日
+            <div className="flex-1 flex gap-2">
+              <Input
+                ref={inputRef}
+                value={userInput}
+                onChange={e => setUserInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder={`输入 /饮食 /健身 /学习 /日程 /分析... (Enter发送)`}
+                disabled={isLoading}
+                className="flex-1"
+              />
+              <Button onClick={() => handleSend()} disabled={isLoading || !userInput.trim()}>
+                <Send className="w-4 h-4" />
               </Button>
-            )}
+            </div>
             {isLoading && <Button variant="outline" onClick={abort}>停止</Button>}
           </div>
         </CardContent>
@@ -551,21 +357,9 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
             <div className="space-y-2 mb-4">
               {suggestedTasks.map((task, i) => (
                 <label key={i} className="flex items-start gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                  <input
-                    type="checkbox"
-                    checked={selectedTasks.has(i)}
-                    onChange={e => {
-                      const next = new Set(selectedTasks);
-                      if (e.target.checked) next.add(i); else next.delete(i);
-                      setSelectedTasks(next);
-                    }}
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">{task.text}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {task.category === 'english' ? '英语' : task.category === 'dental' ? '专业课' : '其它'} | 预计 {task.plannedMinutes} 分钟
-                    </div>
+                  <input type="checkbox" checked={selectedTasks.has(i)} onChange={e => { const n = new Set(selectedTasks); if (e.target.checked) n.add(i); else n.delete(i); setSelectedTasks(n); }} className="mt-1" />
+                  <div className="flex-1"><div className="font-medium">{task.text}</div>
+                    <div className="text-xs text-muted-foreground">{task.category === 'english' ? '英语' : task.category === 'dental' ? '专业课' : '其它'} | 预计 {task.plannedMinutes} 分钟</div>
                   </div>
                 </label>
               ))}
