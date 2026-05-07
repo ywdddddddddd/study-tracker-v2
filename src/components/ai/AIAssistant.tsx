@@ -417,7 +417,7 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
       <Card className="flex-1 flex flex-col">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
-            <span>🤖 AI 教练</span>
+            <span>AI助手</span>
             <div className="flex gap-1 ml-auto flex-wrap">
               {[
                 { key: 'daily_summary', label: '日总结' },
@@ -445,9 +445,9 @@ ${sleepRecords.map((s: SleepRecord) => `- ${s.date}: ${s.bedTime}-${s.wakeTime},
           <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2">
             {conversations.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
-                <p className="text-lg mb-2">👋 我是你的AI效能教练</p>
+                <p className="text-lg mb-2">👋 我是你的AI助手</p>
                 <p className="text-sm">选择上方模式，我会自动读取你的全部数据并给出深度分析建议。</p>
-                <p className="text-xs mt-2">当前模型: DeepSeek-R1 (支持思维链可视化)</p>
+                <p className="text-xs mt-2">当前模型: DeepSeek V4 Pro</p>
               </div>
             )}
             {conversations.map((msg, i) => (

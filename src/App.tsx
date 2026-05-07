@@ -44,7 +44,7 @@ function App() {
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-gradient-to-r from-slate-900 to-blue-900 text-white shadow-md dark:from-slate-950 dark:to-blue-950">
         <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight">考研筑基 · All in One</h1>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">wen的日程管理 · All in One</h1>
           <button
             onClick={() => setDarkMode(!darkMode)}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
