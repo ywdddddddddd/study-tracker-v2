@@ -326,11 +326,15 @@ ${sleepRecords.map(s => `- ${s.date}: ${s.bedTime}→${s.wakeTime} ${Math.floor(
           </div>
           {/* Input area */}
           <div className="flex gap-2 flex-wrap">
-            {conversations.some(c => c.role === 'assistant') && !isLoading && (
-              <Button variant="secondary" onClick={openAdopt} className="shrink-0">
-                <CheckSquare className="w-4 h-4 mr-1" /> 采纳任务
-              </Button>
-            )}
+            {conversations.some(c => c.role === 'assistant') && !isLoading && (() => {
+              const lastMsg = [...conversations].reverse().find(c => c.role === 'assistant');
+              const hasTasks = lastMsg && parseSuggestedTasks(lastMsg.content).length > 0;
+              return hasTasks ? (
+                <Button variant="secondary" onClick={openAdopt} className="shrink-0">
+                  <CheckSquare className="w-4 h-4 mr-1" /> 采纳任务
+                </Button>
+              ) : null;
+            })()}
             <div className="flex-1 flex gap-2">
               <Input
                 ref={inputRef}
