@@ -209,26 +209,40 @@ ${sleepRecords.map(s => `- ${s.date}: ${s.bedTime}→${s.wakeTime} ${Math.floor(
       fitness: '请分析训练数据，评估渐进超负荷进展，给出训练调整建议',
       study: '请分析学习数据，诊断效率问题，给出学习方法优化建议',
       adjustment: '请基于预算配额和健身日程，生成明日完整安排。学习任务用「任务名|分类|预计分钟数」格式，饮食具体到每餐食物，训练参考健身日程',
-      weekly_summary: '请综合本周所有数据做深度总结，给出下周优化方案',
-      daily_summary: `请做${scope === 'day' ? '今日' : '本周'}数据总览和优化建议`,
       auto_setup: '请做全链条分析：先饮食→再健身→再学习→最后综合安排。每步独立分析完成后，最后汇总生成明日完整安排',
     };
+    // Format reminder suffix for schedule commands
+    const fmtReminder = cmd === 'adjustment' || cmd === 'auto_setup'
+      ? '\n\n【重要】请确保学习任务严格使用格式：「任务名|分类|预计分钟数」。例如：「背单词100个|english|45」。分类只能填 english/dental/other 三个值。'
+      : '';
 
     setConversations(prev => [...prev, { role: 'user', content: input }]);
     setUserInput('');
     setContent('');
     setReasoning('');
-    await sendMessage(SYSTEM_PROMPT, `${cmdHints[cmd] || cmdHints.daily_summary}\n\n用户输入: ${input}\n\n${ctx}`);
+    await sendMessage(SYSTEM_PROMPT, `${cmdHints[cmd] || cmdHints.daily_summary}${fmtReminder}\n\n用户输入: ${input}\n\n${ctx}`);
   }
 
   function parseSuggestedTasks(text: string): Task[] {
     const tasks: Task[] = [];
-    const regex = /[「【]([^|]+)\|([^|]+)\|(\d+)[」\]]/g;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const category = match[2].trim() as 'english' | 'dental' | 'other';
-      if (['english', 'dental', 'other'].includes(category)) {
-        tasks.push({ id: `ai-${Date.now()}-${tasks.length}`, text: match[1].trim(), category, status: 'pending', plannedMinutes: parseInt(match[3]), actualMinutes: 0, timerAccumulated: 0 });
+    const seen = new Set<string>();
+    // Try multiple format patterns
+    const patterns = [
+      /[「【]([^|]+)\|([^|]+)\|(\d+)[」\]】]/g,      // 「任务名|分类|分钟数」
+      /(\S.+?)\s*[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)/g,  // 任务名|english|45  (bare pipe)
+      /-\s*(\S.+?)\s*[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)/g, // - 任务名|分类|分钟
+    ];
+    for (const regex of patterns) {
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const text = match[1].trim();
+        const cat = match[2].trim() as 'english' | 'dental' | 'other';
+        const mins = parseInt(match[3]);
+        const key = `${text}|${cat}`;
+        if (!seen.has(key) && mins > 0) {
+          seen.add(key);
+          tasks.push({ id: `ai-${Date.now()}-${tasks.length}`, text, category: cat, status: 'pending', plannedMinutes: mins, actualMinutes: 0, timerAccumulated: 0 });
+        }
       }
     }
     return tasks;
