@@ -76,10 +76,11 @@ export default function HealthPage() {
   };
 
   const addSleep = async () => {
-    const bed = dayjs(`2024-01-01 ${newSleep.bedTime}`);
-    const wake = dayjs(`2024-01-02 ${newSleep.wakeTime}`);
-    const diff = wake.diff(bed, 'minute');
-    const duration = diff > 0 ? diff : diff + 24 * 60;
+    const bedMin = parseInt(newSleep.bedTime.split(':')[0]) * 60 + parseInt(newSleep.bedTime.split(':')[1]);
+    const wakeMin = parseInt(newSleep.wakeTime.split(':')[0]) * 60 + parseInt(newSleep.wakeTime.split(':')[1]);
+    const bed = dayjs(`${sleepDate} ${newSleep.bedTime}`);
+    const wake = bedMin < wakeMin ? dayjs(`${sleepDate} ${newSleep.wakeTime}`) : dayjs(`${sleepDate} ${newSleep.wakeTime}`).add(1, 'day');
+    const duration = wake.diff(bed, 'minute');
     if (editingSleepId) {
       await updateSleepRecord({ id: editingSleepId, date: sleepDate, bedTime: newSleep.bedTime, wakeTime: newSleep.wakeTime, duration, quality: newSleep.quality, note: newSleep.note });
       setEditingSleepId(null);

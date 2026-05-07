@@ -33,11 +33,19 @@ export default function NutritionPage() {
     const profile = await getOrCreateProfile();
     const macros = calculateMacros(profile);
     setTargets(macros);
-    // Track food usage from all loaded entries for Top8
-    for (const e of data) {
-      if (e.name) incrementFoodUsage(e.name);
-    }
   }
+
+  // Load 7-day history for Top8 tracking
+  useEffect(() => {
+    (async () => {
+      const end = dayjs().format('YYYY-MM-DD');
+      const start = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
+      const history = await getFoodEntriesInRange(start, end);
+      for (const e of history) {
+        if (e.name) incrementFoodUsage(e.name);
+      }
+    })();
+  }, [date]);
 
   async function loadCustomFoods() {
     const cf = await getCustomFoods();
@@ -218,6 +226,49 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
           📅 {showSchedule ? '隐藏日程' : '饮食日程'}
         </Button>
       </div>
+
+      {/* Schedule grid - after date controls, before anything else */}
+      {showSchedule && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">饮食日程 (近7天)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-7 gap-1 text-xs">
+              {scheduleData.map(d => {
+                const isToday = d.date === dayjs().format('YYYY-MM-DD');
+                const hasData = d.actual > 0;
+                const deficit = hasData ? d.target - d.actual : 0;
+                const pct = d.target > 0 ? Math.round((d.actual / d.target) * 100) : 0;
+                return (
+                  <button key={d.date} onClick={() => { setDate(d.date); setShowSchedule(false); }}
+                    className={`p-2 rounded-md text-center border transition-colors ${isToday ? 'border-primary bg-primary/10 font-semibold' : 'border-gray-200 hover:bg-muted'}`}>
+                    <div className="text-[10px]">{dayjs(d.date).format('ddd')}</div>
+                    <div className="text-[11px] font-medium">{d.date.slice(5)}</div>
+                    <div className={`text-xs mt-0.5 font-semibold ${!hasData ? 'text-muted-foreground' : pct <= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                      {hasData ? `${d.actual}/${d.target}` : `0/${d.target}`}
+                    </div>
+                    <div className={`text-[10px] ${!hasData ? 'text-muted-foreground' : deficit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {!hasData ? '无数据' : deficit >= 0 ? `-${deficit}` : `+${-deficit}`}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Intake Overview */}
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">今日摄入概览</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div><div className="flex justify-between text-sm mb-1"><span>热量</span><span>{totals.calories} / {targets.calories} kcal</span></div><Progress value={totals.calories} max={targets.calories} /></div>
+          <div className="grid grid-cols-3 gap-4">
+            <div><div className="flex justify-between text-sm mb-1"><span>蛋白质</span><span>{totals.protein.toFixed(1)} / {targets.protein}g</span></div><Progress value={totals.protein} max={targets.protein} /></div>
+            <div><div className="flex justify-between text-sm mb-1"><span>碳水</span><span>{totals.carbs.toFixed(1)} / {targets.carbs}g</span></div><Progress value={totals.carbs} max={targets.carbs} /></div>
+            <div><div className="flex justify-between text-sm mb-1"><span>脂肪</span><span>{totals.fat.toFixed(1)} / {targets.fat}g</span></div><Progress value={totals.fat} max={targets.fat} /></div>
+          </div>
+        </CardContent>
+      </Card>
 
       {foodEditorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setFoodEditorOpen(false); setEditingFood(null); }}>
@@ -408,42 +459,6 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
           </Card>
         );
       })}
-
-      {/* Nutrition Schedule List - above intake overview */}
-      {showSchedule && (
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-lg">饮食日程 (近7天)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-1 text-xs">
-              {scheduleData.map(d => {
-                const isToday = d.date === dayjs().format('YYYY-MM-DD');
-                const hasData = d.actual > 0;
-                const deficit = hasData ? d.target - d.actual : 0;
-                const pct = d.target > 0 ? Math.round((d.actual / d.target) * 100) : 0;
-                return (
-                  <button
-                    key={d.date}
-                    onClick={() => { setDate(d.date); setShowSchedule(false); }}
-                    className={`p-2 rounded-md text-center border transition-colors ${
-                      isToday ? 'border-primary bg-primary/10 font-semibold' :
-                      'border-gray-200 hover:bg-muted'
-                    }`}
-                  >
-                    <div className="text-[10px]">{dayjs(d.date).format('ddd')}</div>
-                    <div className="text-[11px] font-medium">{d.date.slice(5)}</div>
-                <div className={`text-xs mt-0.5 font-semibold ${!hasData ? 'text-muted-foreground' : pct <= 100 ? 'text-green-600' : 'text-red-600'}`}>
-                      {hasData ? `${d.actual}/${d.target}` : `0/${d.target}`}
-                    </div>
-                    <div className={`text-[10px] ${!hasData ? 'text-muted-foreground' : deficit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {!hasData ? '无数据' : deficit >= 0 ? `-${deficit}` : `+${-deficit}`}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
