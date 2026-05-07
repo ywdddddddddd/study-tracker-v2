@@ -226,22 +226,27 @@ ${sleepRecords.map(s => `- ${s.date}: ${s.bedTime}→${s.wakeTime} ${Math.floor(
   function parseSuggestedTasks(text: string): Task[] {
     const tasks: Task[] = [];
     const seen = new Set<string>();
-    // Try multiple format patterns
-    const patterns = [
-      /[「【]([^|]+)\|([^|]+)\|(\d+)[」\]】]/g,      // 「任务名|分类|分钟数」
-      /(\S.+?)\s*[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)/g,  // 任务名|english|45  (bare pipe)
-      /-\s*(\S.+?)\s*[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)/g, // - 任务名|分类|分钟
-    ];
-    for (const regex of patterns) {
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        const text = match[1].trim();
-        const cat = match[2].trim() as 'english' | 'dental' | 'other';
-        const mins = parseInt(match[3]);
-        const key = `${text}|${cat}`;
-        if (!seen.has(key) && mins > 0) {
+    const VALID_CAT = ['english', 'dental', 'other'];
+    const lines = text.split('\n');
+
+    for (const line of lines) {
+      let m: RegExpMatchArray | null = null;
+
+      // 1: bracket「task|cat|min」
+      m = line.match(/[「【]([^|｜]+)[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)[」\]】]/i);
+      // 2: markdown list
+      if (!m) m = line.match(/^\s*[-*]\s*(.+?)\s*[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)/i);
+      // 3: bare pipe
+      if (!m) m = line.match(/^(\S.{2,}?)\s*[|｜]\s*(english|dental|other)\s*[|｜]\s*(\d+)/i);
+
+      if (m) {
+        const name = m[1].trim();
+        const cat = m[2].toLowerCase();
+        const mins = parseInt(m[3]);
+        const key = `${name}|${cat}`;
+        if (VALID_CAT.includes(cat) && !seen.has(key) && mins > 0) {
           seen.add(key);
-          tasks.push({ id: `ai-${Date.now()}-${tasks.length}`, text, category: cat, status: 'pending', plannedMinutes: mins, actualMinutes: 0, timerAccumulated: 0 });
+          tasks.push({ id: `ai-${Date.now()}-${tasks.length}`, text: name, category: cat as 'english' | 'dental' | 'other', status: 'pending', plannedMinutes: mins, actualMinutes: 0, timerAccumulated: 0 });
         }
       }
     }
