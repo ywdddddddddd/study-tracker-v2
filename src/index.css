@@ -169,19 +169,16 @@
 }
 
 /* ============================================================
-   Utilities
+   Utilities — Plain CSS (NOT inside @layer for compatibility)
    ============================================================ */
-@layer utilities {
 .animate-in {
   animation: fadeInUp 0.35s ease-out;
 }
 
-/* Chart animation delay for cascading */
 .chart-container {
   animation: fadeInUp 0.4s ease-out;
 }
 
-/* Improved card design */
 .card-elevated {
   box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
@@ -191,99 +188,48 @@
   transform: translateY(-1px);
 }
 
-  /* ============================================================
-     Animations — respect prefers-reduced-motion
-     ============================================================ */
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .animate-in, .animate-fade-in, .animate-slide-down, .animate-slide-up, .animate-scale-in {
+    animation: none !important;
+    transition: none !important;
   }
+}
 
-  @keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
-  }
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
+.animate-slide-down { animation: slideDown 0.25s ease-out; }
+.animate-slide-up { animation: slideUp 0.25s ease-out; }
+.animate-scale-in { animation: scaleIn 0.2s ease-out; }
+.btn-hover { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.btn-hover:hover { transform: scale(1.02); }
+.btn-hover:active { transform: scale(0.98); }
+.card-hover { transition: box-shadow 0.2s ease, transform 0.2s ease; }
+.card-hover:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.tab-content-enter { animation: scaleIn 0.2s ease-out; }
+.stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
 
-  @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .animate-in,
-    .animate-fade-in,
-    .animate-slide-down,
-    .animate-slide-up,
-    .animate-scale-in {
-      animation: none !important;
-      transition: none !important;
-    }
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  .animate-slide-down {
-    animation: slideDown 0.25s ease-out;
-  }
-
-  .animate-slide-up {
-    animation: slideUp 0.25s ease-out;
-  }
-
-  .animate-scale-in {
-    animation: scaleIn 0.2s ease-out;
-  }
-
-  /* Button hover/active micro-feedback */
-  .btn-hover {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .btn-hover:hover {
-    transform: scale(1.02);
-  }
-  .btn-hover:active {
-    transform: scale(0.98);
-  }
-
-  /* Card hover lift */
-  .card-hover {
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
-  }
-  .card-hover:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
-  }
-
-  /* Tab content transition */
-  .tab-content-enter {
-    animation: scaleIn 0.2s ease-out;
-  }
-
-  /* Stat card number emphasis */
-  .stat-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.02em;
-  }
-
-  @media (max-width: 640px) {
-    .stat-value {
-      font-size: 1.375rem;
-    }
-  }
+@media (max-width: 640px) {
+  .stat-value { font-size: 1.375rem; }
 }
 
 /* ============================================================
