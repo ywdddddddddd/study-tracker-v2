@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange, getSleepRecords, getExtraTrainingsInRange } from '../../lib/db';
 import { SkeletonCard } from '../ui/SkeletonCard';
-import type { DailyPlan, WorkoutLog, SleepRecord } from '../../types';
+import type { DailyPlan, WorkoutLog, SleepRecord, ExtraTraining } from '../../types';
 import dayjs from 'dayjs';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import {
@@ -45,7 +45,7 @@ export default function AnalyticsPage() {
   const [plans, setPlans] = useState<DailyPlan[]>([]);
   const [foodEntries, setFoodEntries] = useState<{date: string; calories: number}[]>([]);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
-  const [extraTrainings, setExtraTrainings] = useState<{calories: number}[]>([]);
+  const [extraTrainings, setExtraTrainings] = useState<ExtraTraining[]>([]);
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
   const [weight, setWeight] = useState(84);
   const [height, setHeight] = useState(183);
@@ -116,9 +116,10 @@ export default function AnalyticsPage() {
   const bmr = calculateBMR(weight, height, age, gender);
   const intakeData = weekDays.map(d => foodEntries.find(f => f.date === d)?.calories || 0);
   const workoutBurnData = weekDays.map(d => { const w = workoutLogs.find(l => l.date === d); return w ? calcWorkoutBurn(w, weight) : 0; });
+  const extraBurnData = weekDays.map(d => extraTrainings.filter(e => e.date === d).reduce((s, e) => s + e.calories, 0));
   const totalBurnData = workoutBurnData.map((b, i) => {
-    const hasData = foodEntries.some(f => f.date === weekDays[i]) || workoutLogs.some(w => w.date === weekDays[i]);
-    return hasData ? b + bmr : 0;
+    const hasData = foodEntries.some(f => f.date === weekDays[i]) || workoutLogs.some(w => w.date === weekDays[i]) || extraTrainings.some(e => e.date === weekDays[i]);
+    return hasData ? b + extraBurnData[i] + bmr : 0;
   });
   const deficitData = intakeData.map((intake, i) => totalBurnData[i] - intake);
   const avgIntake = intakeData.filter(v => v > 0).length > 0 ? Math.round(intakeData.reduce((a, b) => a + b, 0) / intakeData.filter(v => v > 0).length) : 0;
@@ -218,7 +219,7 @@ export default function AnalyticsPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm border-t pt-2 mt-2">
               <div className="text-center"><div className="text-muted-foreground text-xs">日均摄入</div><div className="font-semibold text-blue-600">{avgIntake} kcal</div></div>
-              <div className="text-center"><div className="text-muted-foreground text-xs">日均总消耗</div><div className="font-semibold text-orange-600">{avgTotalBurn} kcal</div><div className="text-[10px] text-muted-foreground">运动 {avgWorkoutBurn} + BMR {bmr}</div></div>
+              <div className="text-center"><div className="text-muted-foreground text-xs">日均总消耗</div><div className="font-semibold text-orange-600">{avgTotalBurn} kcal</div><div className="text-[10px] text-muted-foreground">运动 {avgWorkoutBurn} + 加练 {Math.round(extraBurnData.reduce((a,b)=>a+b,0)/recordedDays)} + BMR {bmr}</div></div>
             </div>
             <div className="mt-2 text-center border-t pt-2"><div className="text-muted-foreground text-xs">日均热量赤字</div>
               <div className={`font-semibold ${avgDeficit > 0 ? 'text-green-600' : 'text-red-600'}`}>{avgDeficit > 0 ? '+' : ''}{avgDeficit} kcal</div>
