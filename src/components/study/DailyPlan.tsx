@@ -7,6 +7,10 @@ import { Progress } from '../ui/progress';
 import { type DailyPlan, type Task, getDailyPlan, saveDailyPlan, getCustomSchedules, getTaskTemplates, saveTaskTemplate, deleteTaskTemplate } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import { useTimer, formatDuration } from '../../hooks/useTimer';
+import { useAutoSave } from '../../hooks/useAutoSave';
+import { useRegisterSave } from '../../hooks/useTabGuard';
+import SaveIndicator from '../ui/SaveIndicator';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import dayjs from 'dayjs';
 import { Play, Pause, Square, RotateCcw, ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp, X } from 'lucide-react';
 
@@ -87,7 +91,7 @@ interface TaskTemplate {
 export default function DailyPlanPage() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [plan, setPlan] = useState<DailyPlan | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ english: false, dental: false, other: false });
   const [timerOpen, setTimerOpen] = useState(false);
   const [timerTaskIdx, setTimerTaskIdx] = useState<number>(-1);
@@ -103,6 +107,13 @@ export default function DailyPlanPage() {
   // Schedule grid
   const [showSchedule, setShowSchedule] = useState(false);
   const [datesWithData, setDatesWithData] = useState<Set<string>>(new Set());
+
+  const { status: saveStatus, save, markDirty } = useAutoSave({
+    data: plan,
+    saveFn: async (p) => { if (p) await saveDailyPlan(p); },
+    isLoaded: loaded,
+  });
+  useRegisterSave('daily', save);
 
   // Reload templates whenever picker opens
   useEffect(() => {
@@ -125,6 +136,7 @@ export default function DailyPlanPage() {
   }, [customSchedules]);
 
   const loadPlan = useCallback(async () => {
+    setLoaded(false);
     const existing = await getDailyPlan(date);
     const schedule = getEffectiveSchedule(date);
     if (existing) {
@@ -143,6 +155,7 @@ export default function DailyPlanPage() {
     } else {
       setPlan({ date, tasks: [], conquered: '', difficulty: '', adjust: '', completion: '', totalFocusMinutes: 0 });
     }
+    setLoaded(true);
   }, [date, getEffectiveSchedule]);
 
   useEffect(() => { loadPlan(); }, [loadPlan]);
@@ -152,14 +165,7 @@ export default function DailyPlanPage() {
     const tasks = [...plan.tasks];
     tasks[idx] = task;
     const totalFocus = tasks.reduce((sum, t) => sum + (t.actualMinutes || 0), 0);
-    setPlan({ ...plan, tasks, totalFocusMinutes: totalFocus });
-  };
-
-  const save = async () => {
-    if (!plan) return;
-    await saveDailyPlan(plan);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setPlan({ ...plan, tasks, totalFocusMinutes: totalFocus }); markDirty();
   };
 
   const addTask = (category: 'english' | 'dental' | 'other', template?: TaskTemplate) => {
@@ -173,7 +179,7 @@ export default function DailyPlanPage() {
       actualMinutes: 0,
       timerAccumulated: 0,
     };
-    setPlan({ ...plan, tasks: [...plan.tasks, newTask] });
+    setPlan({ ...plan, tasks: [...plan.tasks, newTask] }); markDirty();
   };
 
   const saveCurrentTaskAsTemplate = async (task: Task) => {
@@ -206,7 +212,7 @@ export default function DailyPlanPage() {
     if (!plan) return;
     const tasks = plan.tasks.filter((_, i) => i !== idx);
     const totalFocus = tasks.reduce((sum, t) => sum + (t.actualMinutes || 0), 0);
-    setPlan({ ...plan, tasks, totalFocusMinutes: totalFocus });
+    setPlan({ ...plan, tasks, totalFocusMinutes: totalFocus }); markDirty();
   };
 
   const openTimer = (idx: number) => {
@@ -250,6 +256,9 @@ export default function DailyPlanPage() {
 
   return (
     <div className="space-y-6 animate-in">
+      {!loaded && <SkeletonCard />}
+
+      {loaded && (<>
       <div className="flex items-center gap-2 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => setDate(d => dayjs(d).subtract(1, 'day').format('YYYY-MM-DD'))}><ChevronLeft className="w-4 h-4" /></Button>
         <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-auto" />
@@ -264,7 +273,7 @@ export default function DailyPlanPage() {
         }}>
           📋 {showSchedule ? '隐藏日程' : '学习日程'}
         </Button>
-        <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
+        <SaveIndicator status={saveStatus} onSave={function () { save(); }} className="ml-auto" />
       </div>
 
       {/* Study Schedule Grid */}
@@ -439,7 +448,7 @@ export default function DailyPlanPage() {
           <Textarea
             placeholder="完成✅+耗时 & 未完成❌+耗时+原因"
             value={plan?.completion || ''}
-            onChange={e => plan && setPlan({ ...plan, completion: e.target.value })}
+            onChange={e => { plan && setPlan({ ...plan, completion: e.target.value }); markDirty(); }}
           />
         </CardContent>
       </Card>
@@ -451,15 +460,15 @@ export default function DailyPlanPage() {
         <CardContent className="space-y-4">
           <div>
             <label className="text-sm font-medium">攻克（今天具体学会了什么？）</label>
-            <Textarea value={plan?.conquered || ''} onChange={e => plan && setPlan({ ...plan, conquered: e.target.value })} placeholder="具体、可检验的成果" />
+            <Textarea value={plan?.conquered || ''} onChange={e => { plan && setPlan({ ...plan, conquered: e.target.value }); markDirty(); }} placeholder="具体、可检验的成果" />
           </div>
           <div>
             <label className="text-sm font-medium">难点（哪个知识点卡住了？）</label>
-            <Textarea value={plan?.difficulty || ''} onChange={e => plan && setPlan({ ...plan, difficulty: e.target.value })} placeholder="卡住的点 + 卡了多久" />
+            <Textarea value={plan?.difficulty || ''} onChange={e => { plan && setPlan({ ...plan, difficulty: e.target.value }); markDirty(); }} placeholder="卡住的点 + 卡了多久" />
           </div>
           <div>
             <label className="text-sm font-medium">调整（明天减少/增加任务量，还是改变方法？）</label>
-            <Textarea value={plan?.adjust || ''} onChange={e => plan && setPlan({ ...plan, adjust: e.target.value })} placeholder="具体的调整方案" />
+            <Textarea value={plan?.adjust || ''} onChange={e => { plan && setPlan({ ...plan, adjust: e.target.value }); markDirty(); }} placeholder="具体的调整方案" />
           </div>
         </CardContent>
       </Card>
@@ -561,6 +570,7 @@ export default function DailyPlanPage() {
         taskName={timerTaskIdx >= 0 ? plan?.tasks[timerTaskIdx]?.text || '任务' : '任务'}
         onSave={handleTimerSave}
       />
+      </>)}
     </div>
   );
 }

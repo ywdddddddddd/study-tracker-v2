@@ -136,3 +136,12 @@ export interface WorkoutPreset {
   name: string;
   exercises: { name: string; kind: 'strength' | 'cardio'; sets: number; reps: string; rest: number; cardioParams?: { speed?: number; incline?: number; duration?: number } }[];
 }
+
+export interface ExtraTraining {
+  id?: number;
+  date: string;
+  name: string;
+  type: 'push' | 'pull' | 'legs' | 'rest' | 'cardio';
+  calories: number;
+  notes?: string;
+}

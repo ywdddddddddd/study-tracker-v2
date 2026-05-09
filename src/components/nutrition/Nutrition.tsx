@@ -6,6 +6,8 @@ import { Input } from '../ui/input';
 import { Progress } from '../ui/progress';
 import { FOOD_DATABASE } from '../../data/presets';
 import { type FoodEntry, getOrCreateProfile, calculateMacros, getFoodEntries, addFoodEntry, deleteFoodEntry, getCustomFoods, saveCustomFood, deleteCustomFood, getFoodEntriesInRange } from '../../lib/db';
+import { useRegisterSave } from '../../hooks/useTabGuard';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import dayjs from 'dayjs';
 
 export default function NutritionPage() {
@@ -23,16 +25,21 @@ export default function NutritionPage() {
   // Search & sort
   const [foodSearch, setFoodSearch] = useState('');
   const [foodTab, setFoodTab] = useState<string>('top8');
+  const [loaded, setLoaded] = useState(false);
+
+  useRegisterSave('nutrition', async function () { /* entries save immediately on add/delete */ });
 
   useEffect(() => { loadData(); }, [date]);
   useEffect(() => { loadCustomFoods(); }, []);
 
   async function loadData() {
+    setLoaded(false);
     const data = await getFoodEntries(date);
     setEntries(data);
     const profile = await getOrCreateProfile();
     const macros = calculateMacros(profile);
     setTargets(macros);
+    setLoaded(true);
   }
 
   // Load 7-day history for Top8 tracking
@@ -219,6 +226,8 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
 
   return (
     <div className="space-y-6 animate-in">
+      {!loaded && <SkeletonCard />}
+      {loaded && (<>
       <div className="flex items-center gap-2">
         <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-auto" />
         <Button variant="outline" size="sm" onClick={() => setFoodEditorOpen(true)}>🍱 管理食物库</Button>
@@ -459,6 +468,7 @@ const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', sna
           </Card>
         );
       })}
+      </>)}
     </div>
   );
 }

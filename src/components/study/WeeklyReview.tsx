@@ -4,6 +4,10 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { type WeeklyReview, getWeeklyReview, saveWeeklyReview } from '../../lib/db';
+import { useAutoSave } from '../../hooks/useAutoSave';
+import { useRegisterSave } from '../../hooks/useTabGuard';
+import SaveIndicator from '../ui/SaveIndicator';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import dayjs from 'dayjs';
 import { Target, Clock, Zap, BookOpen, Dumbbell, TrendingUp } from 'lucide-react';
 
@@ -15,25 +19,32 @@ export default function WeeklyReviewPage() {
   const [weekStart, setWeekStart] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
   const [thisWeek, setThisWeek] = useState<WeeklyReview | null>(null);
   const [nextWeek, setNextWeek] = useState<WeeklyReview | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [weekStatus, setWeekStatus] = useState<Record<string, boolean>>({});
 
+  const combinedData = { thisWeek, nextWeek };
+  const { status: saveStatus, save, markDirty } = useAutoSave({
+    data: combinedData,
+    saveFn: async (d) => {
+      if (d.thisWeek) await saveWeeklyReview(d.thisWeek);
+      if (d.nextWeek) await saveWeeklyReview(d.nextWeek);
+    },
+    isLoaded: loaded,
+  });
+  useRegisterSave('weekly', save);
+
   const loadBoth = useCallback(async () => {
+    setLoaded(false);
     const nextStart = dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD');
     const [existing, nextExisting] = await Promise.all([
       getWeeklyReview(weekStart), getWeeklyReview(nextStart),
     ]);
     setThisWeek(existing || { weekStart, ...defaultReview() });
     setNextWeek(nextExisting || { weekStart: nextStart, ...defaultReview() });
+    setLoaded(true);
   }, [weekStart]);
   useEffect(() => { loadBoth(); }, [loadBoth]);
-
-  const save = async () => {
-    if (thisWeek) await saveWeeklyReview(thisWeek);
-    if (nextWeek) await saveWeeklyReview(nextWeek);
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
-  };
 
   const weekEnd = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
   const nextEnd = dayjs(weekStart).add(13, 'day').format('YYYY-MM-DD');
@@ -90,33 +101,34 @@ export default function WeeklyReviewPage() {
           <span className="mx-2">|</span>
           <span>时间黑洞</span>
         </div>
-        <Textarea value={review?.timeHole || ''} onChange={e => review && setReview({ ...review, timeHole: e.target.value })} placeholder="效率低下的原因（如：刷手机、犯困）" rows={1} />
+        <Textarea value={review?.timeHole || ''} onChange={e => { review && setReview({ ...review, timeHole: e.target.value }); markDirty(); }} placeholder="效率低下的原因（如：刷手机、犯困）" rows={1} />
 
         {/* Goals */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" />学习目标（任务量）</label>
-            <Textarea value={review?.taskGoals || ''} onChange={e => review && setReview({ ...review, taskGoals: e.target.value })} placeholder="单词50页、真题2套..." rows={2} />
+            <Textarea value={review?.taskGoals || ''} onChange={e => { review && setReview({ ...review, taskGoals: e.target.value }); markDirty(); }} placeholder="单词50页、真题2套..." rows={2} />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><TrendingUp className="w-3 h-3" />进度目标（范围）</label>
-            <Textarea value={review?.progressGoals || ''} onChange={e => review && setReview({ ...review, progressGoals: e.target.value })} placeholder="口组病第3-7章..." rows={2} />
+            <Textarea value={review?.progressGoals || ''} onChange={e => { review && setReview({ ...review, progressGoals: e.target.value }); markDirty(); }} placeholder="口组病第3-7章..." rows={2} />
           </div>
         </div>
-        <Textarea value={review?.goals || ''} onChange={e => review && setReview({ ...review, goals: e.target.value })} placeholder="综合目标（1-2个最重要）" rows={1} />
-        <Textarea value={review?.adjust || ''} onChange={e => review && setReview({ ...review, adjust: e.target.value })} placeholder="本周反思与调整" rows={1} />
+        <Textarea value={review?.goals || ''} onChange={e => { review && setReview({ ...review, goals: e.target.value }); markDirty(); }} placeholder="综合目标（1-2个最重要）" rows={1} />
+        <Textarea value={review?.adjust || ''} onChange={e => { review && setReview({ ...review, adjust: e.target.value }); markDirty(); }} placeholder="本周反思与调整" rows={1} />
       </CardContent>
     </Card>
   );};
 
   return (
     <div className="space-y-6 animate-in">
+      {!loaded ? <SkeletonCard /> : (<>
       <div className="flex items-center gap-2 flex-wrap">
         <Input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)} className="w-auto" />
         <Button variant="outline" size="sm" onClick={async () => { const n = !showSchedule; setShowSchedule(n); if (n) await loadWeekStatus(); }}>
           📅 {showSchedule ? '隐藏' : '每周日程'}
         </Button>
-        <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
+        <SaveIndicator status={saveStatus} onSave={function () { save(); }} className="ml-auto" />
       </div>
 
       {showSchedule && (
@@ -142,6 +154,7 @@ export default function WeeklyReviewPage() {
 
       {renderCard(thisWeek, r => setThisWeek(r), '本周核心目标与时间预算', weekStart, weekEnd)}
       {renderCard(nextWeek, r => setNextWeek(r), '下周核心目标与时间预算', dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD'), nextEnd)}
+      </>)}
     </div>
   );
 }

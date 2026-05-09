@@ -10,6 +10,9 @@ import {
   getFoodEntries, getWorkoutLog
 } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
+import { useRegisterSave } from '../../hooks/useTabGuard';
+import SaveIndicator from '../ui/SaveIndicator';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import dayjs from 'dayjs';
 
 function calcWorkoutBurn(w: WorkoutLog, weightKg: number): number {
@@ -36,35 +39,46 @@ export default function HealthPage() {
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
   const [sleepDate, setSleepDate] = useState(dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
   const [newSleep, setNewSleep] = useState({ bedTime: '23:00', wakeTime: '07:00', quality: 3 as 1|2|3|4|5, note: '' });
-  const [saved, setSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle');
   const [editingSleepId, setEditingSleepId] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
   // Today real-time data
   const [todayIntake, setTodayIntake] = useState(0);
   const [todayBurn, setTodayBurn] = useState(0);
 
+  useRegisterSave('health', async function () {
+    if (profile) await updateProfile(profile);
+  });
+
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
+    setLoaded(false);
     const p = await getOrCreateProfile();
     setProfile(p);
     const wr = await getWeightRecords('desc');
     setWeightRecords(wr.reverse());
     const sr = await getSleepRecords(14);
     setSleepRecords(sr.reverse());
-    // Today real-time data
     const today = dayjs().format('YYYY-MM-DD');
     const [foods, workout] = await Promise.all([getFoodEntries(today), getWorkoutLog(today)]);
     const intake = foods.reduce((s, e) => s + e.calories, 0);
     setTodayIntake(intake);
     const burn = workout ? calcWorkoutBurn(workout, p.weight) : 0;
     setTodayBurn(burn);
+    setLoaded(true);
   }
 
   const saveProfile = async () => {
     if (!profile) return;
-    await updateProfile(profile);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaveStatus('saving');
+    try {
+      await updateProfile(profile);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch {
+      setSaveStatus('error');
+    }
   };
 
   const addWeight = async () => {
@@ -143,6 +157,7 @@ export default function HealthPage() {
 
   return (
     <div className="space-y-6 animate-in">
+      {!loaded ? <SkeletonCard /> : (<>
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-lg">今日热量实时数据</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -183,6 +198,7 @@ export default function HealthPage() {
             <div><label className="text-sm font-medium">目标体脂 (%)</label><Input type="number" value={profile?.targetBodyFat ?? ''} onChange={e => profile && setProfile({ ...profile, targetBodyFat: parseFloat(e.target.value) || 0 })} /></div>
           </div>
           <Button onClick={saveProfile}>{saved ? '✅ 已保存' : '💾 保存档案'}</Button>
+          <SaveIndicator status={saveStatus} onSave={saveProfile} />
         </CardContent>
       </Card>
 
@@ -244,6 +260,7 @@ export default function HealthPage() {
           </div>
         </CardContent>
       </Card>
+      </>)}
     </div>
   );
 }

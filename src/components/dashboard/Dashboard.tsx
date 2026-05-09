@@ -4,6 +4,7 @@ import { StatCard } from '../ui/shared';
 import { Progress } from '../ui/progress';
 import { type DailyPlan, type Profile, getOrCreateProfile, calculateMacros, getDailyPlan, getAllDailyPlans, getFoodEntries, getWorkoutLog } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import type { WorkoutLog } from '../../types';
 import dayjs from 'dayjs';
 
@@ -41,11 +42,13 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ completed: 0, total: 0, rate: 0, streak: 0 });
   const [foodTotal, setFoodTotal] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [workoutBurn, setWorkoutBurn] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const today = dayjs().format('YYYY-MM-DD');
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
+    setLoaded(false);
     const p = await getOrCreateProfile();
     setProfile(p);
     const plan = await getDailyPlan(today);
@@ -89,6 +92,7 @@ export default function Dashboard() {
     } else {
       setWorkoutBurn(0);
     }
+    setLoaded(true);
   }
 
   const scheduleToday = STUDY_SCHEDULE.find(s => s.date === today);
@@ -106,6 +110,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {!loaded ? <SkeletonCard /> : (<>
       {/* Stats grid — responsive 2-col → 4-col */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard title="已完成任务" value={stats.completed} subtitle={`共 ${stats.total} 项`} />
@@ -167,6 +172,7 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      </>)}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import Dashboard from './components/dashboard/Dashboard';
 import DailyPlanPage from './components/study/DailyPlan';
@@ -9,10 +9,12 @@ import AnalyticsPage from './components/analytics/Analytics';
 import AIAssistant from './components/ai/AIAssistant';
 import HealthPage from './components/health/Health';
 import SettingsPage from './components/settings/Settings';
+import { TabGuardContext } from './hooks/useTabGuard';
 import { LayoutDashboard, ClipboardList, BarChart3, Dumbbell, Apple, PieChart, Bot, Heart, Settings, Moon, Sun } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSaving, setIsSaving] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('study-tracker-dark-mode');
@@ -27,6 +29,44 @@ function App() {
     localStorage.setItem('study-tracker-dark-mode', String(darkMode));
   }, [darkMode]);
 
+  // Save-before-leave registry
+  const saveFnsRef = useRef<Record<string, () => Promise<void>>>({});
+
+  const registerSave = useCallback((tab: string, saveFn: () => Promise<void>) => {
+    saveFnsRef.current[tab] = saveFn;
+  }, []);
+
+  const unregisterSave = useCallback((tab: string) => {
+    delete saveFnsRef.current[tab];
+  }, []);
+
+  const saveBeforeLeave = useCallback(async (tab: string) => {
+    const fn = saveFnsRef.current[tab];
+    if (fn) await fn();
+  }, []);
+
+  const tabGuardValue = useMemo(() => ({ registerSave, unregisterSave, saveBeforeLeave }), [registerSave, unregisterSave, saveBeforeLeave]);
+
+  const handleTabChange = useCallback(async (tab: string) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await saveBeforeLeave(activeTab);
+    } catch { /* allow navigation even if save fails */ }
+    setActiveTab(tab);
+    setIsSaving(false);
+  }, [activeTab, isSaving, saveBeforeLeave]);
+
+  const handleMobileNav = useCallback(async (tab: string) => {
+    if (isSaving || tab === activeTab) return;
+    setIsSaving(true);
+    try {
+      await saveBeforeLeave(activeTab);
+    } catch { /* allow navigation */ }
+    setActiveTab(tab);
+    setIsSaving(false);
+  }, [activeTab, isSaving, saveBeforeLeave]);
+
   const tabs = [
     { value: 'dashboard', label: '概览', icon: LayoutDashboard },
     { value: 'daily', label: '每日', icon: ClipboardList },
@@ -39,25 +79,45 @@ function App() {
     { value: 'settings', label: '设置', icon: Settings },
   ];
 
+  const renderContent = (tab: string) => {
+    switch (tab) {
+      case 'dashboard': return <Dashboard />;
+      case 'daily': return <DailyPlanPage />;
+      case 'weekly': return <WeeklyReviewPage />;
+      case 'fitness': return <FitnessPage />;
+      case 'nutrition': return <NutritionPage />;
+      case 'analytics': return <AnalyticsPage />;
+      case 'ai': return <AIAssistant />;
+      case 'health': return <HealthPage />;
+      case 'settings': return <SettingsPage />;
+      default: return null;
+    }
+  };
+
   return (
+    <TabGuardContext.Provider value={tabGuardValue}>
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-gradient-to-r from-slate-900 to-blue-900 text-white shadow-md dark:from-slate-950 dark:to-blue-950">
         <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
           <h1 className="text-lg sm:text-xl font-bold tracking-tight">wen的日程管理 · All in One</h1>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            aria-label={darkMode ? '切换浅色模式' : '切换深色模式'}
-          >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            {isSaving && <span className="text-xs text-white/70 animate-pulse">保存中...</span>}
+            <span className="text-[10px] text-white/50 hidden sm:inline">📡 Supabase 云端</span>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              aria-label={darkMode ? '切换浅色模式' : '切换深色模式'}
+            >
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-4 sm:py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           {/* Desktop: scrollable horizontal tabs */}
           <nav className="hidden md:block mb-6">
             <TabsList className="w-full flex h-auto gap-1 p-1 rounded-xl bg-muted">
@@ -70,18 +130,10 @@ function App() {
             </TabsList>
           </nav>
 
-          {/* Mobile: bottom tab bar for main nav + swipeable content */}
+          {/* Mobile: single content area */}
           <div className="md:hidden pb-20">
             <TabsContent value={activeTab} className="mt-0 animate-fade-in">
-              {activeTab === 'dashboard' && <Dashboard />}
-              {activeTab === 'daily' && <DailyPlanPage />}
-              {activeTab === 'weekly' && <WeeklyReviewPage />}
-              {activeTab === 'fitness' && <FitnessPage />}
-              {activeTab === 'nutrition' && <NutritionPage />}
-              {activeTab === 'analytics' && <AnalyticsPage />}
-              {activeTab === 'ai' && <AIAssistant />}
-              {activeTab === 'health' && <HealthPage />}
-              {activeTab === 'settings' && <SettingsPage />}
+              {renderContent(activeTab)}
             </TabsContent>
           </div>
 
@@ -106,7 +158,7 @@ function App() {
           {tabs.slice(0, 5).map(tab => (
             <button
               key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => handleMobileNav(tab.value)}
               className={`flex flex-col items-center justify-center py-2 px-1 text-xs transition-colors ${
                 activeTab === tab.value
                   ? 'text-primary font-semibold'
@@ -123,7 +175,7 @@ function App() {
             {tabs.slice(5).map(tab => (
               <button
                 key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
+                onClick={() => handleMobileNav(tab.value)}
                 className={`flex flex-col items-center justify-center py-2 px-1 text-xs transition-colors ${
                   activeTab === tab.value
                     ? 'text-primary font-semibold'
@@ -138,6 +190,7 @@ function App() {
         )}
       </nav>
     </div>
+    </TabGuardContext.Provider>
   );
 }
 

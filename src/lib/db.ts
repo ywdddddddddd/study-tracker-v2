@@ -1,9 +1,10 @@
 import { supabase } from './supabase';
+import { cachedFetch, cachedFetchList, cacheWrite, cacheDel } from './cache';
 import type {
   Profile, WeightRecord, DailyPlan, WeeklyReview,
-  FoodEntry, WorkoutLog, AIConversation, Task, SleepRecord
+  FoodEntry, WorkoutLog, AIConversation, Task, SleepRecord, ExtraTraining
 } from '../types';
-export type { Profile, WeightRecord, DailyPlan, WeeklyReview, FoodEntry, WorkoutLog, AIConversation, Task, SleepRecord };
+export type { Profile, WeightRecord, DailyPlan, WeeklyReview, FoodEntry, WorkoutLog, AIConversation, Task, SleepRecord, ExtraTraining };
 
 // --- Profile ---
 export async function getOrCreateProfile(): Promise<Profile> {
@@ -58,34 +59,38 @@ export async function updateProfile(profile: Profile) {
 
 // --- Weight Records ---
 export async function getWeightRecords(order: 'asc' | 'desc' = 'asc'): Promise<WeightRecord[]> {
-  const { data, error } = await supabase.from('weight_records').select('*').order('date', { ascending: order === 'asc' });
-  if (error) throw error;
-  return (data || []).map((d: any) => ({ id: d.id, date: d.date, weight: d.weight, bodyFat: d.body_fat, note: d.note }));
+  return cachedFetchList('weight_records', 'list_' + order, async () => {
+    const { data, error } = await supabase.from('weight_records').select('*').order('date', { ascending: order === 'asc' });
+    if (error) throw error;
+    return (data || []).map((d: any) => ({ id: d.id, date: d.date, weight: d.weight, bodyFat: d.body_fat, note: d.note }));
+  });
 }
 
 export async function addWeightRecord(record: Omit<WeightRecord, 'id'>) {
   const { error } = await supabase.from('weight_records').insert({ date: record.date, weight: record.weight, body_fat: record.bodyFat, note: record.note });
   if (error) throw error;
+  await cacheDel('weight_records', 'list_asc');
+  await cacheDel('weight_records', 'list_desc');
 }
 
 export async function deleteWeightRecord(id: number) {
   await supabase.from('weight_records').delete().eq('id', id);
+  await cacheDel('weight_records', 'list_asc');
+  await cacheDel('weight_records', 'list_desc');
 }
 
 // --- Daily Plans ---
 export async function getDailyPlan(date: string): Promise<DailyPlan | null> {
-  const { data, error } = await supabase.from('daily_plans').select('*').eq('date', date).single();
-  if (error || !data) return null;
-  return {
-    id: data.id,
-    date: data.date,
-    tasks: data.tasks as Task[],
-    conquered: data.conquered,
-    difficulty: data.difficulty,
-    adjust: data.adjust,
-    completion: data.completion,
-    totalFocusMinutes: data.total_focus_minutes,
-  };
+  return cachedFetch('daily_plans', date, async () => {
+    const { data, error } = await supabase.from('daily_plans').select('*').eq('date', date).single();
+    if (error || !data) return null;
+    return {
+      id: data.id, date: data.date, tasks: data.tasks as Task[],
+      conquered: data.conquered, difficulty: data.difficulty,
+      adjust: data.adjust, completion: data.completion,
+      totalFocusMinutes: data.total_focus_minutes,
+    };
+  });
 }
 
 export async function getDailyPlansInRange(start: string, end: string): Promise<DailyPlan[]> {
@@ -121,19 +126,22 @@ export async function saveDailyPlan(plan: DailyPlan) {
     total_focus_minutes: plan.totalFocusMinutes,
   }, { onConflict: 'date' });
   if (error) throw error;
+  await cacheWrite('daily_plans', plan.date, plan);
 }
 
 // --- Weekly Reviews ---
 export async function getWeeklyReview(weekStart: string): Promise<WeeklyReview | null> {
-  const { data, error } = await supabase.from('weekly_reviews').select('*').eq('week_start', weekStart).single();
-  if (error || !data) return null;
-  return {
-    id: data.id, weekStart: data.week_start, timeHole: data.time_hole,
-    focusHours: data.focus_hours, budgetDental: data.budget_dental,
-    budgetEnglish: data.budget_english, budgetReview: data.budget_review,
-    budgetSport: data.budget_sport, goals: data.goals, adjust: data.adjust,
-    taskGoals: data.task_goals || '', progressGoals: data.progress_goals || '',
-  };
+  return cachedFetch('weekly_reviews', weekStart, async () => {
+    const { data, error } = await supabase.from('weekly_reviews').select('*').eq('week_start', weekStart).single();
+    if (error || !data) return null;
+    return {
+      id: data.id, weekStart: data.week_start, timeHole: data.time_hole,
+      focusHours: data.focus_hours, budgetDental: data.budget_dental,
+      budgetEnglish: data.budget_english, budgetReview: data.budget_review,
+      budgetSport: data.budget_sport, goals: data.goals, adjust: data.adjust,
+      taskGoals: data.task_goals || '', progressGoals: data.progress_goals || '',
+    };
+  });
 }
 
 export async function getWeeklyReviews(): Promise<WeeklyReview[]> {
@@ -163,17 +171,20 @@ export async function saveWeeklyReview(review: WeeklyReview) {
     task_goals: review.taskGoals,
     progress_goals: review.progressGoals,
   });
+  await cacheWrite('weekly_reviews', review.weekStart, review);
 }
 
 // --- Food Entries ---
 export async function getFoodEntries(date: string): Promise<FoodEntry[]> {
-  const { data, error } = await supabase.from('food_entries').select('*').eq('date', date).order('id', { ascending: true });
-  if (error) throw error;
-  return (data || []).map((d: any) => ({
-    id: d.id, date: d.date, meal: d.meal, name: d.name,
-    weight: d.weight, calories: d.calories, protein: d.protein,
-    carbs: d.carbs, fat: d.fat, isCustom: d.is_custom,
-  }));
+  return cachedFetchList('food_entries', date, async () => {
+    const { data, error } = await supabase.from('food_entries').select('*').eq('date', date).order('id', { ascending: true });
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      id: d.id, date: d.date, meal: d.meal, name: d.name,
+      weight: d.weight, calories: d.calories, protein: d.protein,
+      carbs: d.carbs, fat: d.fat, isCustom: d.is_custom,
+    }));
+  });
 }
 
 export async function getFoodEntriesInRange(start: string, end: string): Promise<FoodEntry[]> {
@@ -193,10 +204,14 @@ export async function addFoodEntry(entry: Omit<FoodEntry, 'id'>) {
     carbs: entry.carbs, fat: entry.fat, is_custom: entry.isCustom,
   });
   if (error) throw error;
+  await cacheDel('food_entries', entry.date);
 }
 
 export async function deleteFoodEntry(id: number) {
+  // Get the entry date first for cache invalidation
+  const { data } = await supabase.from('food_entries').select('date').eq('id', id).single();
   await supabase.from('food_entries').delete().eq('id', id);
+  if (data?.date) await cacheDel('food_entries', data.date);
 }
 
 export async function bulkPutFoodEntries(entries: FoodEntry[]) {
@@ -213,12 +228,14 @@ export async function bulkPutFoodEntries(entries: FoodEntry[]) {
 
 // --- Workout Logs ---
 export async function getWorkoutLog(date: string): Promise<WorkoutLog | null> {
-  const { data, error } = await supabase.from('workout_logs').select('*').eq('date', date).single();
-  if (error || !data) return null;
-  return {
-    id: data.id, date: data.date, type: data.type,
-    exercises: data.exercises, duration: data.duration, notes: data.notes,
-  } as WorkoutLog;
+  return cachedFetch('workout_logs', date, async () => {
+    const { data, error } = await supabase.from('workout_logs').select('*').eq('date', date).single();
+    if (error || !data) return null;
+    return {
+      id: data.id, date: data.date, type: data.type,
+      exercises: data.exercises, duration: data.duration, notes: data.notes,
+    } as WorkoutLog;
+  });
 }
 
 export async function getWorkoutLogsInRange(start: string, end: string): Promise<WorkoutLog[]> {
@@ -236,18 +253,22 @@ export async function saveWorkoutLog(log: WorkoutLog) {
     duration: log.duration, notes: log.notes,
   }, { onConflict: 'date' });
   if (error) throw error;
+  await cacheWrite('workout_logs', log.date, log);
 }
 
 // --- Sleep Records ---
 export async function getSleepRecords(limit?: number): Promise<SleepRecord[]> {
-  let q = supabase.from('sleep_records').select('*').order('date', { ascending: false });
-  if (limit) q = q.limit(limit);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data || []).map((d: any) => ({
-    id: d.id, date: d.date, bedTime: d.bed_time, wakeTime: d.wake_time,
-    duration: d.duration, quality: d.quality, note: d.note,
-  })).reverse();
+  const key = 'list_' + (limit || 'all');
+  return cachedFetchList('sleep_records', key, async () => {
+    let q = supabase.from('sleep_records').select('*').order('date', { ascending: false });
+    if (limit) q = q.limit(limit);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      id: d.id, date: d.date, bedTime: d.bed_time, wakeTime: d.wake_time,
+      duration: d.duration, quality: d.quality, note: d.note,
+    })).reverse();
+  });
 }
 
 export async function addSleepRecord(record: Omit<SleepRecord, 'id'>) {
@@ -256,6 +277,8 @@ export async function addSleepRecord(record: Omit<SleepRecord, 'id'>) {
     duration: record.duration, quality: record.quality, note: record.note,
   });
   if (error) throw error;
+  await cacheDel('sleep_records', 'list_all');
+  await cacheDel('sleep_records', 'list_14');
 }
 
 export async function deleteSleepRecord(id: number) {
@@ -374,6 +397,42 @@ export async function saveTaskTemplate(template: { id: string; text: string; cat
 
 export async function deleteTaskTemplate(id: string) {
   await supabase.from('task_templates').delete().eq('id', id);
+}
+
+// --- Extra Trainings (加练) ---
+export async function getExtraTrainings(date: string): Promise<ExtraTraining[]> {
+  return cachedFetchList('extra_trainings', date, async () => {
+    const { data, error } = await supabase.from('extra_trainings').select('*').eq('date', date).order('id', { ascending: true });
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      id: d.id, date: d.date, name: d.name,
+      type: d.type, calories: d.calories, notes: d.notes || '',
+    }));
+  });
+}
+
+export async function getExtraTrainingsInRange(start: string, end: string): Promise<ExtraTraining[]> {
+  const { data, error } = await supabase.from('extra_trainings').select('*').gte('date', start).lte('date', end);
+  if (error) throw error;
+  return (data || []).map((d: any) => ({
+    id: d.id, date: d.date, name: d.name,
+    type: d.type, calories: d.calories, notes: d.notes || '',
+  }));
+}
+
+export async function saveExtraTraining(training: Omit<ExtraTraining, 'id'>) {
+  const { error } = await supabase.from('extra_trainings').insert({
+    date: training.date, name: training.name,
+    type: training.type, calories: training.calories, notes: training.notes || '',
+  });
+  if (error) throw error;
+  await cacheDel('extra_trainings', training.date);
+}
+
+export async function deleteExtraTraining(id: number) {
+  const { data } = await supabase.from('extra_trainings').select('date').eq('id', id).single();
+  await supabase.from('extra_trainings').delete().eq('id', id);
+  if (data?.date) await cacheDel('extra_trainings', data.date);
 }
 
 // --- Export / Import ---

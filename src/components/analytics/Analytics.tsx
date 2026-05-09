@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange, getSleepRecords } from '../../lib/db';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import type { DailyPlan, WorkoutLog, SleepRecord } from '../../types';
 import dayjs from 'dayjs';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
@@ -50,10 +51,12 @@ export default function AnalyticsPage() {
   const [age, setAge] = useState(23);
   const [gender, setGender] = useState('male');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => { loadData(); }, [weekOffset]);
 
   async function loadData() {
+    setLoaded(false);
     const start = dayjs().startOf('week').add(1, 'day').subtract(weekOffset, 'week').format('YYYY-MM-DD');
     const end = dayjs(start).add(6, 'day').format('YYYY-MM-DD');
     const [profile, plansData, foods, workouts, sleepData] = await Promise.all([
@@ -73,6 +76,7 @@ export default function AnalyticsPage() {
     const foodMap: Record<string, number> = {};
     for (const f of foods) foodMap[f.date] = (foodMap[f.date] || 0) + f.calories;
     setFoodEntries(Object.entries(foodMap).map(([date, calories]) => ({ date, calories })));
+    setLoaded(true);
   }
 
   const weekDays = Array.from({ length: 7 }, (_, i) => dayjs().startOf('week').add(1, 'day').subtract(weekOffset, 'week').add(i, 'day').format('YYYY-MM-DD'));
@@ -166,6 +170,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6 animate-in">
+      {!loaded ? <SkeletonCard /> : (<>
       <div className="flex items-center gap-2">
         <button onClick={() => setWeekOffset(w => w + 1)} className="px-3 py-1 rounded-md border text-sm">← 上周</button>
         <span className="text-sm text-muted-foreground">{dayjs(weekDays[0]).format('M月D日')} - {dayjs(weekDays[6]).format('M月D日')}</span>
@@ -264,6 +269,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
+      </>)}
     </div>
   );
 }

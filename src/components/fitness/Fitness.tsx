@@ -3,8 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { WORKOUT_PRESETS, GYM_SCHEDULE } from '../../data/presets';
-import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog, getGymSchedules, saveGymSchedule } from '../../lib/db';
+import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog, getGymSchedules, saveGymSchedule, getExtraTrainings, saveExtraTraining, deleteExtraTraining, type ExtraTraining } from '../../lib/db';
 import type { WorkoutLog, ExerciseLog } from '../../types';
+import { useAutoSave, type SaveStatus } from '../../hooks/useAutoSave';
+import { useRegisterSave } from '../../hooks/useTabGuard';
+import SaveIndicator from '../ui/SaveIndicator';
+import { SkeletonCard } from '../ui/SkeletonCard';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronUp, X, Plus, Flame } from 'lucide-react';
 
@@ -51,14 +55,26 @@ function getStrengthDuration(log: WorkoutLog): number {
 export default function FitnessPage() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [log, setLog] = useState<WorkoutLog | null>(null);
+  const [extraTrainings, setExtraTrainings] = useState<ExtraTraining[]>([]);
   const [selectedPreset, setSelectedPreset] = useState('push');
-  const [saved, setSaved] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [weight, setWeight] = useState(84);
   const [showSchedule, setShowSchedule] = useState(false);
-  // Editable gym schedule with Supabase persistence
   const [gymSchedule, setGymSchedule] = useState<{ date: string; weekday: string; gym: string }[]>([]);
   const [editingGym, setEditingGym] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  // 加练表单
+  const [newExtra, setNewExtra] = useState({ name: '', type: 'cardio' as ExtraTraining['type'], calories: 200 });
+  // Dirty state for useAutoSave (combine log + extraTrainings)
+  const combinedData = { log, extraTrainings };
+  const { status: saveStatus, save, markDirty } = useAutoSave({
+    data: combinedData,
+    saveFn: async (d) => {
+      if (d.log) await saveWorkoutLog(d.log);
+    },
+    isLoaded: loaded,
+  });
+  useRegisterSave('fitness', save);
 
   const loadGymSchedule = async () => {
     const overrides = await getGymSchedules();
@@ -82,6 +98,7 @@ export default function FitnessPage() {
   }, [date]);
 
   async function loadData() {
+    setLoaded(false);
     const profile = await getOrCreateProfile();
     setWeight(profile.weight);
     const existing = await getWorkoutLog(date);
@@ -91,6 +108,9 @@ export default function FitnessPage() {
     } else {
       applyPreset(selectedPreset, false);
     }
+    const extras = await getExtraTrainings(date);
+    setExtraTrainings(extras);
+    setLoaded(true);
   }
 
   const applyPreset = (type: string, saveToState = true) => {
@@ -116,7 +136,7 @@ export default function FitnessPage() {
     if (!log) return;
     const exercises = [...log.exercises];
     exercises[exIdx] = { ...exercises[exIdx], name };
-    setLog({ ...log, exercises });
+    setLog({ ...log, exercises }); markDirty();
   };
 
   const toggleKind = (exIdx: number) => {
@@ -145,48 +165,63 @@ export default function FitnessPage() {
     if (!log) return;
     const exercises = [...log.exercises];
     exercises[exIdx] = { ...exercises[exIdx], cardioParams: { ...exercises[exIdx].cardioParams, [field]: val } };
-    setLog({ ...log, exercises });
+    setLog({ ...log, exercises }); markDirty();
   };
 
   const addSet = (exIdx: number) => {
     if (!log) return;
     const exercises = [...log.exercises];
     exercises[exIdx] = { ...exercises[exIdx], sets: [...exercises[exIdx].sets, { reps: 0, weight: 0 }] };
-    setLog({ ...log, exercises });
+    setLog({ ...log, exercises }); markDirty();
   };
 
   const removeSet = (exIdx: number, setIdx: number) => {
     if (!log) return;
     const exercises = [...log.exercises];
     exercises[exIdx] = { ...exercises[exIdx], sets: exercises[exIdx].sets.filter((_, i) => i !== setIdx) };
-    setLog({ ...log, exercises });
+    setLog({ ...log, exercises }); markDirty();
   };
 
   const addExercise = () => {
     if (!log) return;
     const newEx: ExerciseLog = { name: '新动作', kind: 'strength', sets: [{ reps: 0, weight: 0 }] };
-    setLog({ ...log, exercises: [...log.exercises, newEx] });
+    setLog({ ...log, exercises: [...log.exercises, newEx] }); markDirty();
   };
 
   const removeExercise = (exIdx: number) => {
     if (!log) return;
-    setLog({ ...log, exercises: log.exercises.filter((_, i) => i !== exIdx) });
+    setLog({ ...log, exercises: log.exercises.filter((_, i) => i !== exIdx) }); markDirty();
   };
 
-  const save = async () => {
-    if (!log) return;
-    await saveWorkoutLog(log);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // 加练操作
+  const addExtra = async () => {
+    if (!newExtra.name.trim()) return;
+    const et: Omit<ExtraTraining, 'id'> = {
+      date, name: newExtra.name.trim(), type: newExtra.type, calories: newExtra.calories,
+    };
+    await saveExtraTraining(et);
+    setExtraTrainings(prev => [...prev, { ...et, id: Date.now() }]);
+    setNewExtra({ name: '', type: 'cardio', calories: 200 });
+    markDirty();
   };
+
+  const removeExtra = async (id: number) => {
+    if (!confirm('删除此加练记录？')) return;
+    await deleteExtraTraining(id);
+    setExtraTrainings(prev => prev.filter(e => e.id !== id));
+    markDirty();
+  };
+
+  const extraKcal = extraTrainings.reduce((s, e) => s + e.calories, 0);
+  const totalKcal = log ? calculateBurn(log, weight) + extraKcal : extraKcal;
 
   return (
     <div className="space-y-6 animate-in">
       <div className="flex items-center gap-2 flex-wrap">
-        <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-auto" />
+        <Input type="date" value={date} onChange={e => { setDate(e.target.value); }} className="w-auto" />
         <div className="flex gap-1">
           {WORKOUT_PRESETS.map(p => (
-            <Button key={p.type} variant={selectedPreset === p.type ? 'default' : 'outline'} size="sm" onClick={() => applyPreset(p.type)}>
+            <Button key={p.type} variant={selectedPreset === p.type ? 'default' : 'outline'} size="sm" onClick={() => { applyPreset(p.type); markDirty(); }}>
               {p.type === 'push' ? '推' : p.type === 'pull' ? '拉' : p.type === 'legs' ? '腿' : '休'}
             </Button>
           ))}
@@ -194,7 +229,7 @@ export default function FitnessPage() {
         <Button variant="outline" size="sm" onClick={() => setShowSchedule(!showSchedule)}>
           📅 {showSchedule ? '隐藏日程' : '健身日程'}
         </Button>
-        <Button onClick={save} className="ml-auto">{saved ? '✅ 已保存' : '💾 保存'}</Button>
+        <SaveIndicator status={saveStatus} onSave={function () { save(); }} className="ml-auto" />
       </div>
 
       {/* Fitness Macro Schedule List */}
@@ -250,13 +285,15 @@ export default function FitnessPage() {
         </Card>
       )}
 
-      {log && (
+      {!loaded && <SkeletonCard />}
+
+      {loaded && log && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center justify-between">
               <span>{WORKOUT_PRESETS.find(p => p.type === log.type)?.name || '自定义训练'}</span>
               <span className="text-sm font-normal text-orange-600 flex items-center gap-1">
-                <Flame className="w-4 h-4" /> 预计消耗 {calculateBurn(log, weight)} kcal
+                <Flame className="w-4 h-4" /> 总消耗 {totalKcal} kcal{extraKcal > 0 && <span className="text-xs">(含加练{extraKcal})</span>}
               </span>
             </CardTitle>
           </CardHeader>
@@ -360,7 +397,62 @@ export default function FitnessPage() {
             </div>
             <div>
               <span className="text-sm font-medium">备注:</span>
-              <Input value={log.notes} onChange={e => setLog({ ...log, notes: e.target.value })} placeholder="感受、强度、下次调整..." />
+              <Input value={log.notes} onChange={e => { setLog({ ...log, notes: e.target.value }); markDirty(); }} placeholder="感受、强度、下次调整..." />
+            </div>
+
+            {/* 🔥 加练 */}
+            <div className="border-t pt-4 mt-2">
+              <h4 className="text-sm font-semibold flex items-center gap-1 mb-3">
+                <Flame className="w-4 h-4 text-orange-500" /> 加练
+                <span className="text-xs font-normal text-muted-foreground">({extraTrainings.length}项, {extraKcal}kcal)</span>
+              </h4>
+              {extraTrainings.map(e => (
+                <div key={e.id} className="flex items-center gap-2 py-1.5 border-b border-dashed last:border-0 text-sm">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                    e.type === '推' ? 'bg-red-100 text-red-700' : e.type === '拉' ? 'bg-blue-100 text-blue-700' :
+                    e.type === '腿' ? 'bg-green-100 text-green-700' : e.type === '休' ? 'bg-gray-100 text-gray-500' :
+                    'bg-orange-100 text-orange-700'
+                  }`}>{e.type}</span>
+                  <span className="flex-1 truncate">{e.name}</span>
+                  <span className="text-orange-600 font-medium shrink-0">{e.calories} kcal</span>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive shrink-0" onClick={() => e.id && removeExtra(e.id)}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+              {extraTrainings.length === 0 && (
+                <p className="text-xs text-muted-foreground py-2">暂无加练，添加自由训练项目</p>
+              )}
+              <div className="flex gap-2 mt-3">
+                <Input
+                  value={newExtra.name}
+                  onChange={e => setNewExtra(p => ({ ...p, name: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') addExtra(); }}
+                  placeholder="项目名称"
+                  className="flex-1 h-8 text-sm"
+                />
+                <select
+                  value={newExtra.type}
+                  onChange={e => setNewExtra(p => ({ ...p, type: e.target.value as ExtraTraining['type'] }))}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="push">推</option>
+                  <option value="pull">拉</option>
+                  <option value="legs">腿</option>
+                  <option value="cardio">有氧</option>
+                  <option value="rest">休</option>
+                </select>
+                <Input
+                  type="number"
+                  value={newExtra.calories || ''}
+                  onChange={e => setNewExtra(p => ({ ...p, calories: parseInt(e.target.value) || 0 }))}
+                  placeholder="kcal"
+                  className="w-20 h-8 text-sm"
+                />
+                <Button size="sm" onClick={addExtra} disabled={!newExtra.name.trim()} className="h-8">
+                  <Plus className="w-3 h-3 mr-1" />添加
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

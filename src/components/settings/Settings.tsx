@@ -3,14 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { exportAllData, importAllData, clearAllData, getOrCreateProfile, updateProfile } from '../../lib/db';
+import LLMSettings from './LLMSettings';
 import type { Profile } from '../../lib/db';
 import dayjs from 'dayjs';
-import { Moon, Sun, Download, Upload, Trash2, User } from 'lucide-react';
+import { Moon, Sun, Download, Upload, Trash2, User, Bot } from 'lucide-react';
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'profile' | 'llm'>('profile');
 
   useEffect(() => {
     getOrCreateProfile().then(setProfile);
@@ -64,6 +66,23 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {/* Settings Tabs */}
+      <div className="flex gap-1 p-1 rounded-xl bg-muted">
+        <button
+          onClick={function () { setActiveSettingsTab('profile'); }}
+          className={'flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-all ' + (activeSettingsTab === 'profile' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}
+        >
+          <User className="w-4 h-4" /> 档案
+        </button>
+        <button
+          onClick={function () { setActiveSettingsTab('llm'); }}
+          className={'flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-all ' + (activeSettingsTab === 'llm' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}
+        >
+          <Bot className="w-4 h-4" /> LLM
+        </button>
+      </div>
+
+      {activeSettingsTab === 'llm' ? <LLMSettings /> : (<>
       {/* Profile Settings */}
       <Card>
         <CardHeader className="pb-2 sm:pb-3">
@@ -161,6 +180,7 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </>)}
     </div>
   );
 }
