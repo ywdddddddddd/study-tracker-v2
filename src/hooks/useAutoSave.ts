@@ -15,6 +15,13 @@ export function useAutoSave<T>({ data, saveFn, isLoaded, enabled = true }: UseAu
   const savingRef = useRef(false);
   const versionRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Always point to latest data to prevent stale closure issues
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const saveFnRef = useRef(saveFn);
+  saveFnRef.current = saveFn;
+  const loadedRef = useRef(isLoaded);
+  loadedRef.current = isLoaded;
 
   // 追踪数据变化
   useEffect(() => {
@@ -40,14 +47,14 @@ export function useAutoSave<T>({ data, saveFn, isLoaded, enabled = true }: UseAu
   }, [status, data, enabled]);
 
   const save = useCallback(async () => {
-    if (savingRef.current || !isLoaded || !enabled) return;
+    if (savingRef.current || !loadedRef.current || !enabled) return;
     savingRef.current = true;
     const currentVersion = ++versionRef.current;
     setStatus('saving');
 
     try {
       if (timerRef.current) clearTimeout(timerRef.current);
-      await saveFn(data);
+      await saveFnRef.current(dataRef.current);
       if (currentVersion === versionRef.current) {
         setStatus('saved');
         timerRef.current = setTimeout(() => {
@@ -59,11 +66,11 @@ export function useAutoSave<T>({ data, saveFn, isLoaded, enabled = true }: UseAu
       if (currentVersion === versionRef.current) {
         setStatus('error');
       }
-      throw err; // Re-throw so caller knows save failed
+      throw err;
     } finally {
       savingRef.current = false;
     }
-  }, [data, saveFn, isLoaded, enabled]);
+  }, [enabled]); // Only depends on enabled; reads data/saveFn/isLoaded from refs
 
   const markDirty = useCallback(() => {
     if (isLoaded && enabled) setStatus('dirty');
