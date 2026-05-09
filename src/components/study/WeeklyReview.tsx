@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { type WeeklyReview, getWeeklyReview, saveWeeklyReview } from '../../lib/db';
+import { type WeeklyReview, getWeeklyReview, saveWeeklyReview, getDailyPlansInRange } from '../../lib/db';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useRegisterSave } from '../../hooks/useTabGuard';
 import SaveIndicator from '../ui/SaveIndicator';
@@ -22,6 +22,8 @@ export default function WeeklyReviewPage() {
   const [loaded, setLoaded] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [weekStatus, setWeekStatus] = useState<Record<string, boolean>>({});
+  const [thisWeekUsage, setThisWeekUsage] = useState({ dental: 0, english: 0, other: 0 });
+  const [nextWeekUsage, setNextWeekUsage] = useState({ dental: 0, english: 0, other: 0 });
 
   const combinedData = { thisWeek, nextWeek };
   const { status: saveStatus, save, markDirty } = useAutoSave({
@@ -60,6 +62,27 @@ export default function WeeklyReviewPage() {
     ]);
     setThisWeek(existing || { weekStart, ...defaultReview() });
     setNextWeek(nextExisting || { weekStart: nextStart, ...defaultReview() });
+
+    // Load actual usage for progress bars
+    const thisWeekEnd = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
+    const nextWeekEnd = dayjs(nextStart).add(6, 'day').format('YYYY-MM-DD');
+    const [thisPlans, nextPlans] = await Promise.all([
+      getDailyPlansInRange(weekStart, thisWeekEnd),
+      getDailyPlansInRange(nextStart, nextWeekEnd),
+    ]);
+    const calcUsage = function (plans: any[]) {
+      const u = { dental: 0, english: 0, other: 0 };
+      for (const p of plans) for (const t of (p.tasks || [])) {
+        if (t.status === 'completed' && t.category in u) {
+          const cat = t.category as keyof typeof u;
+          u[cat] = (u[cat] || 0) + (t.actualMinutes || 0);
+        }
+      }
+      return u;
+    };
+    setThisWeekUsage(calcUsage(thisPlans));
+    setNextWeekUsage(calcUsage(nextPlans));
+
     setLoaded(true);
   }, [weekStart]);
   useEffect(() => { loadBoth(); }, [loadBoth]);
@@ -83,8 +106,9 @@ export default function WeeklyReviewPage() {
     { key: 'budgetSport', label: '运动', icon: Dumbbell, color: 'text-orange-600', bg: 'bg-orange-50', bar: 'bg-orange-500' },
   ];
 
-  const renderCard = (review: WeeklyReview | null, setReview: (r: WeeklyReview) => void, label: string, start: string, end: string) => {
+  const renderCard = (review: WeeklyReview | null, setReview: (r: WeeklyReview) => void, label: string, start: string, end: string, usage: { dental: number; english: number; other: number }) => {
     const totalBudget = ((review as any)?.budgetDental || 0) + ((review as any)?.budgetEnglish || 0) + ((review as any)?.budgetReview || 0) + ((review as any)?.budgetSport || 0);
+    const usageMap: Record<string, number> = { budgetDental: usage.dental, budgetEnglish: usage.english, budgetReview: usage.other, budgetSport: 0 };
     return (
     <Card className="card-elevated">
       <CardHeader className="pb-2">
@@ -97,17 +121,26 @@ export default function WeeklyReviewPage() {
       <CardContent className="space-y-4">
         {/* Budget progress bars */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {budgetCards.map(({ key, label, icon: Icon, color, bg, bar }, idx) => (
-            <div key={key} className={`${bg} rounded-xl p-3 text-center animate-scale-in stagger-${idx + 1}`}>
-              <div className={`text-lg font-bold ${color}`}>{((review as any)?.[key] || 0).toFixed(1)}h</div>
+          {budgetCards.map(({ key, label, icon: Icon, color, bg, bar }) => {
+              const budgetH = ((review as any)?.[key] || 0);
+              const budgetMin = budgetH * 60;
+              const usedMin = usageMap[key] || 0;
+              const pct = budgetMin > 0 ? (usedMin / budgetMin * 100) : (usedMin > 0 ? 200 : 0);
+              return (
+            <div key={key} className={`${bg} rounded-xl p-3 text-center`}>
+              <div className={`text-lg font-bold ${color}`}>{budgetH.toFixed(1)}h</div>
               <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                 <Icon className="w-3 h-3" />{label}
               </div>
-              <div className="mt-1 h-1 rounded-full bg-muted-foreground/20">
-                <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, ((review as any)?.[key] || 0) / Math.max(1, totalBudget) * 100 * 4)}%` }} />
+              <div className="mt-1 h-2 rounded-full bg-muted-foreground/20 overflow-hidden">
+                <div className={`h-full rounded-full ${bar} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                已完成 {Math.round(usedMin)}min{pct > 99 ? (pct > 100 ? ' 🔥超额' : ' ✅') : ''}
               </div>
             </div>
-          ))}
+              );
+            })}
         </div>
 
         {/* Summary row */}
@@ -170,8 +203,8 @@ export default function WeeklyReviewPage() {
         </Card>
       )}
 
-      {renderCard(thisWeek, r => setThisWeek(r), '本周核心目标与时间预算', weekStart, weekEnd)}
-      {renderCard(nextWeek, r => setNextWeek(r), '下周核心目标与时间预算', dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD'), nextEnd)}
+      {renderCard(thisWeek, r => setThisWeek(r), '本周核心目标与时间预算', weekStart, weekEnd, thisWeekUsage)}
+      {renderCard(nextWeek, r => setNextWeek(r), '下周核心目标与时间预算', dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD'), nextEnd, nextWeekUsage)}
       </>)}
     </div>
   );
