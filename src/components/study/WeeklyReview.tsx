@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { type WeeklyReview, getWeeklyReview, saveWeeklyReview, getDailyPlansInRange } from '../../lib/db';
+import { type WeeklyReview, getWeeklyReview, saveWeeklyReview, getDailyPlansInRange, getWorkoutLogsInRange, getExtraTrainingsInRange } from '../../lib/db';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useRegisterSave } from '../../hooks/useTabGuard';
 import SaveIndicator from '../ui/SaveIndicator';
@@ -29,6 +29,8 @@ export default function WeeklyReviewPage() {
   const [weekStatus, setWeekStatus] = useState<Record<string, boolean>>({});
   const [thisWeekUsage, setThisWeekUsage] = useState({ dental: 0, english: 0, other: 0 });
   const [nextWeekUsage, setNextWeekUsage] = useState({ dental: 0, english: 0, other: 0 });
+  const [thisWeekSport, setThisWeekSport] = useState(0);
+  const [nextWeekSport, setNextWeekSport] = useState(0);
 
   const combinedData = { thisWeek, nextWeek };
   const { status: saveStatus, save, markDirty } = useAutoSave({
@@ -71,9 +73,13 @@ export default function WeeklyReviewPage() {
     // Load actual usage for progress bars
     const thisWeekEnd = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
     const nextWeekEnd = dayjs(nextStart).add(6, 'day').format('YYYY-MM-DD');
-    const [thisPlans, nextPlans] = await Promise.all([
+    const [thisPlans, nextPlans, thisWorkouts, nextWorkouts, _thisExtras, _nextExtras] = await Promise.all([
       getDailyPlansInRange(weekStart, thisWeekEnd),
       getDailyPlansInRange(nextStart, nextWeekEnd),
+      getWorkoutLogsInRange(weekStart, thisWeekEnd).catch(() => []),
+      getWorkoutLogsInRange(nextStart, nextWeekEnd).catch(() => []),
+      getExtraTrainingsInRange(weekStart, thisWeekEnd).catch(() => []),
+      getExtraTrainingsInRange(nextStart, nextWeekEnd).catch(() => []),
     ]);
     const calcUsage = function (plans: any[]) {
       const u = { dental: 0, english: 0, other: 0 };
@@ -87,6 +93,8 @@ export default function WeeklyReviewPage() {
     };
     setThisWeekUsage(calcUsage(thisPlans));
     setNextWeekUsage(calcUsage(nextPlans));
+    setThisWeekSport(thisWorkouts.reduce((s: number, w: any) => s + (w.duration || 0), 0));
+    setNextWeekSport(nextWorkouts.reduce((s: number, w: any) => s + (w.duration || 0), 0));
 
     setLoaded(true);
   }, [weekStart]);
@@ -111,9 +119,9 @@ export default function WeeklyReviewPage() {
     { key: 'budgetSport', label: '运动', icon: Dumbbell, color: 'text-orange-600', bg: 'bg-orange-50', bar: 'bg-orange-500' },
   ];
 
-  const renderCard = (review: WeeklyReview | null, setReview: (r: WeeklyReview) => void, label: string, start: string, end: string, usage: { dental: number; english: number; other: number }) => {
+  const renderCard = (review: WeeklyReview | null, setReview: (r: WeeklyReview) => void, label: string, start: string, end: string, usage: { dental: number; english: number; other: number }, sportMinutes: number) => {
     const totalBudget = ((review as any)?.budgetDental || 0) + ((review as any)?.budgetEnglish || 0) + ((review as any)?.budgetReview || 0) + ((review as any)?.budgetSport || 0);
-    const usageMap: Record<string, number> = { budgetDental: usage.dental, budgetEnglish: usage.english, budgetReview: usage.other, budgetSport: 0 };
+    const usageMap: Record<string, number> = { budgetDental: usage.dental, budgetEnglish: usage.english, budgetReview: usage.other, budgetSport: sportMinutes };
     return (
     <Card className="card-elevated">
       <CardHeader className="pb-2">
@@ -208,8 +216,8 @@ export default function WeeklyReviewPage() {
         </Card>
       )}
 
-      {renderCard(thisWeek, r => setThisWeek(r), '本周核心目标与时间预算', weekStart, weekEnd, thisWeekUsage)}
-      {renderCard(nextWeek, r => setNextWeek(r), '下周核心目标与时间预算', dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD'), nextEnd, nextWeekUsage)}
+      {renderCard(thisWeek, r => setThisWeek(r), '本周核心目标与时间预算', weekStart, weekEnd, thisWeekUsage, thisWeekSport)}
+      {renderCard(nextWeek, r => setNextWeek(r), '下周核心目标与时间预算', dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD'), nextEnd, nextWeekUsage, nextWeekSport)}
       </>)}
     </div>
   );
