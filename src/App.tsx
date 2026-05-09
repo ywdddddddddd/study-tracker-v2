@@ -65,7 +65,6 @@ function App() {
   const handleMobileNav = useCallback(async (tab: string) => {
     if (isSaving || tab === activeTab) return;
     const saveFn = saveFnsRef.current[activeTab];
-    // BRUTE FORCE fallback: try window global first
     const bruteFn = (window as any).__saveDaily || (window as any).__saveFitness || (window as any).__saveWeekly;
     setIsSaving(true);
     try {

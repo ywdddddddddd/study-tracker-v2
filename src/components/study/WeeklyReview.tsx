@@ -41,6 +41,13 @@ export default function WeeklyReviewPage() {
 
   useRegisterSave('weekly', directSave);
 
+  useEffect(() => {
+    (window as any).__saveWeekly = async () => {
+      if (thisWeek) await saveWeeklyReview(thisWeek);
+      if (nextWeek) await saveWeeklyReview(nextWeek);
+    };
+  }, [thisWeek, nextWeek]);
+
   const isMountedRef = useRef(false);
 
   const loadBoth = useCallback(async () => {

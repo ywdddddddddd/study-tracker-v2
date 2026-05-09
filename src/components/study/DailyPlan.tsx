@@ -125,10 +125,8 @@ export default function DailyPlanPage() {
   // BRUTE FORCE: set global window save function for mobile
   useEffect(() => {
     (window as any).__saveDaily = async () => {
-      alert('[BRUTE] saveDaily called, plan: ' + (plan ? JSON.stringify({date: plan?.date, taskCount: plan?.tasks?.length, conquered: plan?.conquered}) : 'NULL'));
       if (!plan) return;
       await saveDailyPlan(plan);
-      alert('[BRUTE] saveDailyPlan completed');
     };
   }, [plan]);
 
@@ -592,25 +590,6 @@ export default function DailyPlanPage() {
         taskName={timerTaskIdx >= 0 ? plan?.tasks[timerTaskIdx]?.text || '任务' : '任务'}
         onSave={handleTimerSave}
       />
-
-      {/* DIAGNOSTIC: Direct Supabase write test */}
-      <div className="border-2 border-red-400 rounded-lg p-3 mt-4 text-xs">
-        <p className="font-bold text-red-600 mb-1">🔧 诊断测试（保存问题排查）</p>
-        <p className="mb-1">当前日期: {date} | 已加载: {loaded ? '✅' : '❌'} | 任务数: {plan?.tasks.length ?? 0}</p>
-        <Button size="sm" variant="destructive" onClick={async () => {
-          const testVal = 'DIAG-' + Date.now();
-          alert('开始测试: 写入 "' + testVal + '" 到 Supabase...');
-          try {
-            const { supabase } = await import('../../lib/supabase');
-            const { error } = await supabase.from('daily_plans').upsert({
-              date, tasks: plan?.tasks || [], conquered: testVal, difficulty: '', adjust: '', completion: '', total_focus_minutes: 0
-            }, { onConflict: 'date' });
-            if (error) { alert('❌ 写入失败: ' + JSON.stringify(error)); return; }
-            const { data } = await supabase.from('daily_plans').select('conquered').eq('date', date).single();
-            alert('✅ 写入成功！读回验证: "' + (data?.conquered || 'NULL') + '" | 期望: "' + testVal + '" | ' + (data?.conquered === testVal ? '✅ 匹配' : '❌ 不匹配'));
-          } catch(e: any) { alert('❌ 异常: ' + e.message); }
-        }}>诊断测试：直接写Supabase并读回验证</Button>
-      </div>
       </>)}
     </div>
   );

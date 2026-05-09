@@ -82,6 +82,13 @@ export default function FitnessPage() {
 
   useRegisterSave('fitness', directSave);
 
+  useEffect(() => {
+    (window as any).__saveFitness = async () => {
+      if (!log) return;
+      await saveWorkoutLog(log);
+    };
+  }, [log]);
+
   const loadGymSchedule = async () => {
     const overrides = await getGymSchedules();
     const overrideMap: Record<string, string> = {};

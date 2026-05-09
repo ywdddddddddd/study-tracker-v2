@@ -81,10 +81,8 @@ export async function deleteWeightRecord(id: number) {
 
 // --- Daily Plans ---
 export async function getDailyPlan(date: string): Promise<DailyPlan | null> {
-  console.log('[LOAD] getDailyPlan called for', date);
   return cachedFetch('daily_plans', date, async () => {
     const { data, error } = await supabase.from('daily_plans').select('*').eq('date', date).single();
-    console.log('[LOAD] Supabase response for', date, 'error:', !!error, 'taskCount:', data?.tasks?.length, 'conquered:', data?.conquered);
     if (error || !data) return null;
     return {
       id: data.id, date: data.date, tasks: data.tasks as Task[],
@@ -118,8 +116,7 @@ export async function getAllDailyPlans(): Promise<DailyPlan[]> {
 }
 
 export async function saveDailyPlan(plan: DailyPlan) {
-  console.log('[SAVE] saveDailyPlan called with plan:', JSON.stringify({date: plan.date, taskCount: plan.tasks.length, conquered: plan.conquered}).substring(0,200));
-  const { error, data } = await supabase.from('daily_plans').upsert({
+  const { error } = await supabase.from('daily_plans').upsert({
     date: plan.date,
     tasks: plan.tasks,
     conquered: plan.conquered,
@@ -128,15 +125,8 @@ export async function saveDailyPlan(plan: DailyPlan) {
     completion: plan.completion,
     total_focus_minutes: plan.totalFocusMinutes,
   }, { onConflict: 'date' });
-  console.log('[SAVE] Supabase response:', JSON.stringify({error, hasData: !!data}));
-  if (error) { console.error('[SAVE] Error:', error); throw error; }
-  // DEBUG: Temporary alert to verify save
-  console.log('[SAVE] Successfully saved plan for', plan.date, 'with', plan.tasks.length, 'tasks');
+  if (error) throw error;
   await cacheWrite('daily_plans', plan.date, plan);
-
-  // DEBUG: Verify the save by reading back
-  const { data: verify } = await supabase.from('daily_plans').select('conquered').eq('date', plan.date).single();
-  console.log('[SAVE] Verify readback:', verify?.conquered);
 }
 
 // --- Weekly Reviews ---
