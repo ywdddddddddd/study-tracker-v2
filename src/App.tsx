@@ -26,7 +26,11 @@ function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('study-tracker-dark-mode', String(darkMode));
+    try {
+      localStorage.setItem('study-tracker-dark-mode', String(darkMode));
+    } catch {
+      // iOS Safari private mode ignores writes — silently ignore
+    }
   }, [darkMode]);
 
   // Save-before-leave registry
@@ -66,7 +70,12 @@ function App() {
     setIsSaving(true);
     try {
       if (saveFn) await saveFn();
-    } catch { /* allow navigation */ }
+    } catch (err) {
+      console.error('保存失败:', err);
+      alert('保存失败，请检查网络连接后重试');
+      setIsSaving(false);
+      return;
+    }
     setActiveTab(tab);
     setIsSaving(false);
   }, [activeTab, isSaving]);

@@ -216,9 +216,13 @@ function getFoodUsage(): Record<string, number> {
 }
 
 function incrementFoodUsage(name: string) {
-  const usage = getFoodUsage();
-  usage[name] = (usage[name] || 0) + 1;
-  localStorage.setItem(FOOD_USAGE_KEY, JSON.stringify(usage));
+  try {
+    const usage = getFoodUsage();
+    usage[name] = (usage[name] || 0) + 1;
+    localStorage.setItem(FOOD_USAGE_KEY, JSON.stringify(usage));
+  } catch {
+    // iOS Safari private mode ignores writes — silently ignore
+  }
 }
 
 const meals = ['breakfast', 'lunch', 'dinner', 'snack'] as const;

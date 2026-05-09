@@ -17,7 +17,11 @@ function load(): LLMSettings {
 }
 
 function save(settings: LLMSettings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // iOS Safari private mode ignores writes — silently ignore
+  }
 }
 
 export function getProviders(): LLMProvider[] {
