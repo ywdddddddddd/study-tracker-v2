@@ -16,7 +16,12 @@ function defaultReview() {
 }
 
 export default function WeeklyReviewPage() {
-  const [weekStart, setWeekStart] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
+  const getMonday = () => {
+    const d = dayjs();
+    const day = d.day(); // 0=Sun, 1=Mon...
+    return d.subtract(day === 0 ? 6 : day - 1, 'day');
+  };
+  const [weekStart, setWeekStart] = useState(getMonday().format('YYYY-MM-DD'));
   const [thisWeek, setThisWeek] = useState<WeeklyReview | null>(null);
   const [nextWeek, setNextWeek] = useState<WeeklyReview | null>(null);
   const [loaded, setLoaded] = useState(false);

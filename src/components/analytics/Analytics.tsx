@@ -58,7 +58,8 @@ export default function AnalyticsPage() {
 
   async function loadData() {
     setLoaded(false);
-    const start = dayjs().startOf('week').add(1, 'day').subtract(weekOffset, 'week').format('YYYY-MM-DD');
+    const monday = (() => { const d = dayjs(); const day = d.day(); return d.subtract(day === 0 ? 6 : day - 1, 'day'); })();
+    const start = monday.subtract(weekOffset, 'week').format('YYYY-MM-DD');
     const end = dayjs(start).add(6, 'day').format('YYYY-MM-DD');
     const [profile, plansData, foods, workouts, sleepData, extraData] = await Promise.all([
       getOrCreateProfile(),
@@ -82,7 +83,7 @@ export default function AnalyticsPage() {
     setLoaded(true);
   }
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => dayjs().startOf('week').add(1, 'day').subtract(weekOffset, 'week').add(i, 'day').format('YYYY-MM-DD'));
+  const weekDays = Array.from({ length: 7 }, (_, i) => (() => { const d = dayjs(); const day = d.day(); return d.subtract(day === 0 ? 6 : day - 1, 'day'); })().subtract(weekOffset, 'week').add(i, 'day').format('YYYY-MM-DD'));
 
   // Pie data
   const latestPlan = [...plans].sort((a, b) => b.date.localeCompare(a.date))[0];

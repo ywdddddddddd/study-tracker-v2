@@ -48,7 +48,7 @@ export default function AIAssistant() {
       getFoodEntries(yesterday), getFoodEntries(twoDaysAgo),
       getFoodEntriesInRange(dataStart, dataEnd), getWorkoutLogsInRange(dataStart, dataEnd),
       getWeightRecords('desc').then(function (a) { return a.slice(0, 14); }), getSleepRecords(14).then(function (a) { return a.reverse(); }),
-      getWeeklyReview(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD')),
+      getWeeklyReview((() => { const d = dayjs(); const day = d.day(); return d.subtract(day === 0 ? 6 : day - 1, 'day').format('YYYY-MM-DD'); })()),
       getGymSchedules().catch(function () { return []; }),
       getExtraTrainings(today),
       getExtraTrainingsInRange(dataStart, dataEnd).catch(function () { return []; }),
