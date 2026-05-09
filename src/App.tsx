@@ -64,12 +64,16 @@ function App() {
 
   const handleMobileNav = useCallback(async (tab: string) => {
     if (isSaving || tab === activeTab) return;
-    // CRITICAL: capture save function BEFORE any state change
-    // On mobile, setIsSaving triggers unmount of old component -> unregisters save
     const saveFn = saveFnsRef.current[activeTab];
+    // BRUTE FORCE fallback: try window global first
+    const bruteFn = (window as any).__saveDaily || (window as any).__saveFitness || (window as any).__saveWeekly;
     setIsSaving(true);
     try {
-      if (saveFn) await saveFn();
+      if (bruteFn) {
+        await bruteFn();
+      } else if (saveFn) {
+        await saveFn();
+      }
     } catch (err) {
       console.error('保存失败:', err);
       alert('保存失败，请检查网络连接后重试');

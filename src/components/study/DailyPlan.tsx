@@ -122,6 +122,16 @@ export default function DailyPlanPage() {
 
   useRegisterSave('daily', directSave);
 
+  // BRUTE FORCE: set global window save function for mobile
+  useEffect(() => {
+    (window as any).__saveDaily = async () => {
+      alert('[BRUTE] saveDaily called, plan: ' + (plan ? JSON.stringify({date: plan?.date, taskCount: plan?.tasks?.length, conquered: plan?.conquered}) : 'NULL'));
+      if (!plan) return;
+      await saveDailyPlan(plan);
+      alert('[BRUTE] saveDailyPlan completed');
+    };
+  }, [plan]);
+
   // Reload templates whenever picker opens
   useEffect(() => {
     if (templatePickerOpen) {
