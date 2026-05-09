@@ -267,8 +267,8 @@ export default function FitnessPage() {
                       'border-blue-200 bg-blue-50/50 hover:bg-blue-100'
                     }`}
                   >
-                    <div className="text-[10px]" onClick={() => { setDate(s.date); setShowSchedule(false); }}>{s.weekday}</div>
-                    <div className="text-[11px] font-medium" onClick={() => { setDate(s.date); setShowSchedule(false); }}>{s.date.slice(5)}</div>
+                    <div className="text-[10px]" onClick={() => { const map: Record<string, string> = { '推': 'push', '拉': 'pull', '腿': 'legs', '休': 'rest' }; setDate(s.date); setShowSchedule(false); applyPreset(map[s.gym] || 'rest'); }}>{s.weekday}</div>
+                    <div className="text-[11px] font-medium" onClick={() => { const map: Record<string, string> = { '推': 'push', '拉': 'pull', '腿': 'legs', '休': 'rest' }; setDate(s.date); setShowSchedule(false); applyPreset(map[s.gym] || 'rest'); }}>{s.date.slice(5)}</div>
                     {editingGym === s.date ? (
                       <select
                         value={s.gym}

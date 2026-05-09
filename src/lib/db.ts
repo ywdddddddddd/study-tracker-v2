@@ -229,7 +229,7 @@ export async function bulkPutFoodEntries(entries: FoodEntry[]) {
 // --- Workout Logs ---
 export async function getWorkoutLog(date: string): Promise<WorkoutLog | null> {
   return cachedFetch('workout_logs', date, async () => {
-    const { data, error } = await supabase.from('workout_logs').select('*').eq('date', date).single();
+    const { data, error } = await supabase.from('workout_logs').select('*').eq('date', date).maybeSingle();
     if (error || !data) return null;
     return {
       id: data.id, date: data.date, type: data.type,

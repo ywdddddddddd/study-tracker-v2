@@ -184,6 +184,41 @@ export default function LLMSettings() {
             );
           })}
 
+          {/* New provider form */}
+          {editing && editingId === null && (
+            <div className="border-2 border-dashed border-primary/50 rounded-lg p-3 space-y-2">
+              <div className="text-sm font-medium text-primary">新建 Provider</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground">名称</label>
+                  <Input value={editing.name} onChange={function (e) { setEditing({ ...editing, name: e.target.value }); }} className="h-7 text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">类型</label>
+                  <select value={editing.provider} onChange={function (e) { setEditing({ ...editing, provider: e.target.value as ProviderType }); }} className="h-7 w-full text-xs rounded border px-1">
+                    {PROVIDER_TYPES.map(function (pt) { return <option key={pt.value} value={pt.value}>{pt.label}</option>; })}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] text-muted-foreground">API URL</label>
+                  <Input value={editing.apiUrl} onChange={function (e) { setEditing({ ...editing, apiUrl: e.target.value }); }} className="h-7 text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Model</label>
+                  <Input value={editing.model} onChange={function (e) { setEditing({ ...editing, model: e.target.value }); }} className="h-7 text-xs" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">API Key</label>
+                  <Input type="password" value={editing.apiKey} onChange={function (e) { setEditing({ ...editing, apiKey: e.target.value }); }} className="h-7 text-xs" placeholder="sk-..." />
+                </div>
+                <div className="col-span-2 flex gap-2">
+                  <Button size="sm" onClick={handleSave}>保存</Button>
+                  <Button variant="outline" size="sm" onClick={function () { setEditing(null); setEditingId(null); }}>取消</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {testResult && (
             <div className="text-xs p-2 rounded bg-muted">
               {testResult}
