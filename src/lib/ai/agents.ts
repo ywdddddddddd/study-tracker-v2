@@ -171,7 +171,7 @@ export const AGENTS: Record<string, AgentConfig> = {
 };
 
 /** 构建某个 Agent 的完整用户 prompt */
-export function buildAnalysisPrompt(agent: AgentConfig['name'], context: string, previousResults?: string): string {
+export function buildAnalysisPrompt(_agent: AgentConfig['name'], context: string, previousResults?: string): string {
   const base = `数据上下文:\n${context}`;
   if (previousResults) {
     return `${base}\n\n前面分析结果:\n${previousResults}\n\n请基于以上信息给出你的分析。`;

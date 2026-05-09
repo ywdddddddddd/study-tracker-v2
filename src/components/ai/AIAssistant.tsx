@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { useState, useRef, useCallback } from 'react';
+import { Card, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { getOrCreateProfile, calculateMacros, type Task, type FoodEntry, getDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getWeeklyReview, getGymSchedules } from '../../lib/db';

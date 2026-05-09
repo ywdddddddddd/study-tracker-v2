@@ -1,8 +1,5 @@
-import type { LLMProvider } from './types';
 import { getEnabledProviders, getAgentProvider } from './settings-store';
 import type { AgentName } from './types';
-
-let requestIdCounter = 0;
 
 /** 通用 LLM 调用，支持流式和非流式 */
 export async function callLLM(

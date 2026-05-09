@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { WORKOUT_PRESETS, GYM_SCHEDULE } from '../../data/presets';
 import { getOrCreateProfile, getWorkoutLog, saveWorkoutLog, getGymSchedules, saveGymSchedule, getExtraTrainings, saveExtraTraining, deleteExtraTraining, type ExtraTraining } from '../../lib/db';
 import type { WorkoutLog, ExerciseLog } from '../../types';
-import { useAutoSave, type SaveStatus } from '../../hooks/useAutoSave';
+import { useAutoSave } from '../../hooks/useAutoSave';
 import { useRegisterSave } from '../../hooks/useTabGuard';
 import SaveIndicator from '../ui/SaveIndicator';
 import { SkeletonCard } from '../ui/SkeletonCard';
@@ -409,8 +409,8 @@ export default function FitnessPage() {
               {extraTrainings.map(e => (
                 <div key={e.id} className="flex items-center gap-2 py-1.5 border-b border-dashed last:border-0 text-sm">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
-                    e.type === '推' ? 'bg-red-100 text-red-700' : e.type === '拉' ? 'bg-blue-100 text-blue-700' :
-                    e.type === '腿' ? 'bg-green-100 text-green-700' : e.type === '休' ? 'bg-gray-100 text-gray-500' :
+                    e.type === 'push' ? 'bg-red-100 text-red-700' : e.type === 'pull' ? 'bg-blue-100 text-blue-700' :
+                    e.type === 'legs' ? 'bg-green-100 text-green-700' : e.type === 'rest' ? 'bg-gray-100 text-gray-500' :
                     'bg-orange-100 text-orange-700'
                   }`}>{e.type}</span>
                   <span className="flex-1 truncate">{e.name}</span>

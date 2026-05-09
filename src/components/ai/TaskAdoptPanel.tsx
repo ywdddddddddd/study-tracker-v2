@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import type { AIFinalOutput, ScheduledTask, FitnessSuggestion } from '../../lib/ai/types';
+import type { AIFinalOutput, ScheduledTask } from '../../lib/ai/types';
 import dayjs from 'dayjs';
 import { getDailyPlan, saveDailyPlan, saveExtraTraining } from '../../lib/db';
 import { CheckSquare, X, Plus, Send, AlertTriangle } from 'lucide-react';
@@ -20,7 +20,7 @@ export function TaskAdoptPanel({ output, onClose }: TaskAdoptProps) {
     new Set(output.schedule.fitnessTasks.map((_, i) => i))
   );
   const [editedTasks, setEditedTasks] = useState(output.schedule.dailyTasks.map(function(t) { return { ...t }; }));
-  const [editedFitness, setEditedFitness] = useState(output.schedule.fitnessTasks.map(function(t) { return { ...t }; }));
+  const [editedFitness, _setEditedFitness] = useState(output.schedule.fitnessTasks.map(function(t) { return { ...t }; }));
   const [adopted, setAdopted] = useState(false);
 
   const toggleTask = function (i: number) {

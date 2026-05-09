@@ -1,4 +1,4 @@
-import type { AnalysisStage, AIFinalOutput } from '../../lib/ai/types';
+import type { AnalysisStage } from '../../lib/ai/types';
 import { cn } from '../../lib/utils';
 import { CheckCircle2, Loader2, Circle, XCircle, ChevronRight } from 'lucide-react';
 

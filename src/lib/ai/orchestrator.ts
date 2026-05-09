@@ -1,12 +1,10 @@
 import type { AIFinalOutput, ValidationResult, AnalysisStage } from './types';
-import { callAgent, callLLMNonStreaming } from './providers';
+import { callAgent } from './providers';
 import { AGENTS, buildAnalysisPrompt, extractJSON, mergeResults } from './agents';
-import type { AgentName } from './types';
 
 // ============ Orchestrator ============
 
 const MAX_SCHEDULER_RETRIES = 3;
-const PASS_THRESHOLD = 80;
 
 export interface OrchestratorCallbacks {
   onStageChange: (stages: AnalysisStage[]) => void;
@@ -102,7 +100,8 @@ export async function runFullAnalysis(
         { signal: callbacks.signal }
       );
       const rawValidation = extractJSON(validatorText) || {};
-      validationResult = rawValidation.validation || { score: 0, passed: false, issues: [], warnings: [] };
+      const vData = rawValidation as Record<string, unknown>;
+      validationResult = (vData.validation as ValidationResult) || { score: 0, passed: false, issues: [], warnings: [] };
       updateStage('validator', { status: 'completed', result: { validation: validationResult } });
 
       if (validationResult.passed || retries >= MAX_SCHEDULER_RETRIES) break;
@@ -121,8 +120,9 @@ export async function runFullAnalysis(
 
     // Try formatter output first, fall back to mergeResults
     const formatted = extractJSON(formatterText);
-    const finalOutput: AIFinalOutput = formatted && formatted.version
-      ? formatted as unknown as AIFinalOutput
+    const fmtData = formatted as Record<string, unknown> | null;
+    const finalOutput: AIFinalOutput = fmtData && fmtData.version
+      ? fmtData as unknown as AIFinalOutput
       : mergeResults(nutritionResult, fitnessResult, studyResult, scheduleResult, { validation: validationResult });
 
     finalOutput.score = validationResult.score;

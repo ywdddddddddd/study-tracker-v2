@@ -197,7 +197,6 @@ export default function HealthPage() {
             <div><label className="text-sm font-medium">目标体重 (kg)</label><Input type="number" value={profile?.targetWeight ?? ''} onChange={e => profile && setProfile({ ...profile, targetWeight: parseFloat(e.target.value) || 0 })} /></div>
             <div><label className="text-sm font-medium">目标体脂 (%)</label><Input type="number" value={profile?.targetBodyFat ?? ''} onChange={e => profile && setProfile({ ...profile, targetBodyFat: parseFloat(e.target.value) || 0 })} /></div>
           </div>
-          <Button onClick={saveProfile}>{saved ? '✅ 已保存' : '💾 保存档案'}</Button>
           <SaveIndicator status={saveStatus} onSave={saveProfile} />
         </CardContent>
       </Card>
