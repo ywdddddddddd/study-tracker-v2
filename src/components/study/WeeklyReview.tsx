@@ -32,7 +32,14 @@ export default function WeeklyReviewPage() {
     },
     isLoaded: loaded,
   });
-  useRegisterSave('weekly', save);
+
+  const directSave = useCallback(async () => {
+    if (!loaded) return;
+    if (thisWeek) await saveWeeklyReview(thisWeek);
+    if (nextWeek) await saveWeeklyReview(nextWeek);
+  }, [thisWeek, nextWeek, loaded]);
+
+  useRegisterSave('weekly', directSave);
 
   const isMountedRef = useRef(false);
 
@@ -132,7 +139,7 @@ export default function WeeklyReviewPage() {
         <Button variant="outline" size="sm" onClick={async () => { const n = !showSchedule; setShowSchedule(n); if (n) await loadWeekStatus(); }}>
           📅 {showSchedule ? '隐藏' : '每周日程'}
         </Button>
-        <SaveIndicator status={saveStatus} onSave={function () { save(); }} className="ml-auto" />
+        <SaveIndicator status={saveStatus} onSave={directSave} className="ml-auto" />
       </div>
 
       {showSchedule && (

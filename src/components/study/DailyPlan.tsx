@@ -113,7 +113,14 @@ export default function DailyPlanPage() {
     saveFn: async (p) => { if (p) await saveDailyPlan(p); },
     isLoaded: loaded,
   });
-  useRegisterSave('daily', save);
+
+  // Direct save that bypasses all hook complexity
+  const directSave = useCallback(async () => {
+    if (!plan || !loaded) return;
+    await saveDailyPlan(plan);
+  }, [plan, loaded]);
+
+  useRegisterSave('daily', directSave);
 
   // Reload templates whenever picker opens
   useEffect(() => {
@@ -278,7 +285,7 @@ export default function DailyPlanPage() {
         }}>
           📋 {showSchedule ? '隐藏日程' : '学习日程'}
         </Button>
-        <SaveIndicator status={saveStatus} onSave={function () { save(); }} className="ml-auto" />
+        <SaveIndicator status={saveStatus} onSave={directSave} className="ml-auto" />
       </div>
 
       {/* Study Schedule Grid */}

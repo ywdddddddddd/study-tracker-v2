@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -74,7 +74,13 @@ export default function FitnessPage() {
     },
     isLoaded: loaded,
   });
-  useRegisterSave('fitness', save);
+
+  const directSave = useCallback(async () => {
+    if (!log || !loaded) return;
+    await saveWorkoutLog(log);
+  }, [log, loaded]);
+
+  useRegisterSave('fitness', directSave);
 
   const loadGymSchedule = async () => {
     const overrides = await getGymSchedules();
@@ -234,7 +240,7 @@ export default function FitnessPage() {
         <Button variant="outline" size="sm" onClick={() => setShowSchedule(!showSchedule)}>
           📅 {showSchedule ? '隐藏日程' : '健身日程'}
         </Button>
-        <SaveIndicator status={saveStatus} onSave={function () { save(); }} className="ml-auto" />
+        <SaveIndicator status={saveStatus} onSave={directSave} className="ml-auto" />
       </div>
 
       {/* Fitness Macro Schedule List */}
