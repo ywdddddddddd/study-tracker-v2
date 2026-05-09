@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -97,7 +97,12 @@ export default function FitnessPage() {
     loadData();
   }, [date]);
 
+  const isMountedRef = useRef(false);
+
   async function loadData() {
+    // Save dirty data from previous date
+    if (isMountedRef.current) await save();
+    isMountedRef.current = true;
     setLoaded(false);
     const profile = await getOrCreateProfile();
     setWeight(profile.weight);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -135,7 +135,12 @@ export default function DailyPlanPage() {
     return STUDY_SCHEDULE.find(s => s.date === d);
   }, [customSchedules]);
 
+  const isMounted = useRef(false);
+
   const loadPlan = useCallback(async () => {
+    // Save dirty data from previous date before loading new date
+    if (isMounted.current) await save();
+    isMounted.current = true;
     setLoaded(false);
     const existing = await getDailyPlan(date);
     const schedule = getEffectiveSchedule(date);

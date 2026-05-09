@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -34,7 +34,11 @@ export default function WeeklyReviewPage() {
   });
   useRegisterSave('weekly', save);
 
+  const isMountedRef = useRef(false);
+
   const loadBoth = useCallback(async () => {
+    if (isMountedRef.current) await save();
+    isMountedRef.current = true;
     setLoaded(false);
     const nextStart = dayjs(weekStart).add(7, 'day').format('YYYY-MM-DD');
     const [existing, nextExisting] = await Promise.all([
