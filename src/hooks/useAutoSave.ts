@@ -54,10 +54,12 @@ export function useAutoSave<T>({ data, saveFn, isLoaded, enabled = true }: UseAu
           setStatus(s => s === 'saved' ? 'idle' : s);
         }, 3000);
       }
-    } catch {
+      return true;
+    } catch (err) {
       if (currentVersion === versionRef.current) {
         setStatus('error');
       }
+      throw err; // Re-throw so caller knows save failed
     } finally {
       savingRef.current = false;
     }

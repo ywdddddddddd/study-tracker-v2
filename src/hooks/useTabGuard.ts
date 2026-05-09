@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, useCallback, useEffect } from 'react';
 
-type SaveFn = () => Promise<void>;
+type SaveFn = () => Promise<unknown>;
 
 interface TabGuardContextValue {
   registerSave: (tab: string, saveFn: SaveFn) => void;

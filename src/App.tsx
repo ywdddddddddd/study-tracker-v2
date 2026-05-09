@@ -34,9 +34,9 @@ function App() {
   }, [darkMode]);
 
   // Save-before-leave registry
-  const saveFnsRef = useRef<Record<string, () => Promise<void>>>({});
+  const saveFnsRef = useRef<Record<string, () => Promise<unknown>>>({});
 
-  const registerSave = useCallback((tab: string, saveFn: () => Promise<void>) => {
+  const registerSave = useCallback((tab: string, saveFn: () => Promise<unknown>) => {
     saveFnsRef.current[tab] = saveFn;
   }, []);
 
