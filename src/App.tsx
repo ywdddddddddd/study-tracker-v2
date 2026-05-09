@@ -49,23 +49,27 @@ function App() {
 
   const handleTabChange = useCallback(async (tab: string) => {
     if (isSaving) return;
+    const saveFn = saveFnsRef.current[activeTab];
     setIsSaving(true);
     try {
-      await saveBeforeLeave(activeTab);
+      if (saveFn) await saveFn();
     } catch { /* allow navigation even if save fails */ }
     setActiveTab(tab);
     setIsSaving(false);
-  }, [activeTab, isSaving, saveBeforeLeave]);
+  }, [activeTab, isSaving]);
 
   const handleMobileNav = useCallback(async (tab: string) => {
     if (isSaving || tab === activeTab) return;
+    // CRITICAL: capture save function BEFORE any state change
+    // On mobile, setIsSaving triggers unmount of old component -> unregisters save
+    const saveFn = saveFnsRef.current[activeTab];
     setIsSaving(true);
     try {
-      await saveBeforeLeave(activeTab);
+      if (saveFn) await saveFn();
     } catch { /* allow navigation */ }
     setActiveTab(tab);
     setIsSaving(false);
-  }, [activeTab, isSaving, saveBeforeLeave]);
+  }, [activeTab, isSaving]);
 
   const tabs = [
     { value: 'dashboard', label: '概览', icon: LayoutDashboard },
