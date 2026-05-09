@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange, getSleepRecords } from '../../lib/db';
+import { getOrCreateProfile, getDailyPlansInRange, getFoodEntriesInRange, getWorkoutLogsInRange, getSleepRecords, getExtraTrainingsInRange } from '../../lib/db';
 import { SkeletonCard } from '../ui/SkeletonCard';
 import type { DailyPlan, WorkoutLog, SleepRecord } from '../../types';
 import dayjs from 'dayjs';
@@ -45,6 +45,7 @@ export default function AnalyticsPage() {
   const [plans, setPlans] = useState<DailyPlan[]>([]);
   const [foodEntries, setFoodEntries] = useState<{date: string; calories: number}[]>([]);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
+  const [extraTrainings, setExtraTrainings] = useState<{calories: number}[]>([]);
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
   const [weight, setWeight] = useState(84);
   const [height, setHeight] = useState(183);
@@ -59,12 +60,13 @@ export default function AnalyticsPage() {
     setLoaded(false);
     const start = dayjs().startOf('week').add(1, 'day').subtract(weekOffset, 'week').format('YYYY-MM-DD');
     const end = dayjs(start).add(6, 'day').format('YYYY-MM-DD');
-    const [profile, plansData, foods, workouts, sleepData] = await Promise.all([
+    const [profile, plansData, foods, workouts, sleepData, extraData] = await Promise.all([
       getOrCreateProfile(),
       getDailyPlansInRange(start, end),
       getFoodEntriesInRange(start, end),
       getWorkoutLogsInRange(start, end),
       getSleepRecords(7).then(arr => arr.reverse()),
+      getExtraTrainingsInRange(start, end).catch(function () { return []; }),
     ]);
     setWeight(profile.weight);
     setHeight(profile.height);
@@ -72,6 +74,7 @@ export default function AnalyticsPage() {
     setGender(profile.gender);
     setPlans(plansData);
     setWorkoutLogs(workouts);
+    setExtraTrainings(extraData);
     setSleepRecords(sleepData);
     const foodMap: Record<string, number> = {};
     for (const f of foods) foodMap[f.date] = (foodMap[f.date] || 0) + f.calories;
@@ -235,14 +238,15 @@ export default function AnalyticsPage() {
               {(() => {
                 const totalIntake = foodEntries.reduce((s, e) => s + e.calories, 0);
                 const totalWorkoutBurn = workoutLogs.reduce((s, w) => s + calcWorkoutBurn(w, weight), 0);
+                const totalExtraKcal = extraTrainings.reduce((s, e) => s + e.calories, 0);
                 const recordedDays = plans.length || 1;
                 const totalBMR = bmr * recordedDays;
-                const totalBurn = totalWorkoutBurn + totalBMR;
+                const totalBurn = totalWorkoutBurn + totalExtraKcal + totalBMR;
                 const deficit = totalBurn - totalIntake;
                 return (<>
                   <p>本周总摄入: <span className="font-semibold text-blue-600">{totalIntake} kcal</span></p>
                   <p>本周总消耗: <span className="font-semibold text-orange-600">{totalBurn} kcal</span></p>
-                  <p className="text-[10px] text-muted-foreground">运动 {totalWorkoutBurn} + 基础代谢 {totalBMR} (BMR {bmr}/天)</p>
+                  <p className="text-[10px] text-muted-foreground">运动 {totalWorkoutBurn} + 加练 {totalExtraKcal} + 基础代谢 {totalBMR} (BMR {bmr}/天)</p>
                   <p>热量赤字: <span className={`font-semibold ${deficit > 0 ? 'text-green-600' : 'text-red-600'}`}>{deficit > 0 ? '+' : ''}{deficit} kcal</span></p>
                   <p className="text-[10px] text-muted-foreground">{deficit > 0 ? `约可减脂 ${(deficit / 7700).toFixed(2)} kg` : '热量盈余，建议控制饮食'}</p>
                 </>);

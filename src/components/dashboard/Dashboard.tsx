@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { StatCard } from '../ui/shared';
 import { Progress } from '../ui/progress';
-import { type DailyPlan, type Profile, getOrCreateProfile, calculateMacros, getDailyPlan, getAllDailyPlans, getFoodEntries, getWorkoutLog } from '../../lib/db';
+import { type DailyPlan, type Profile, getOrCreateProfile, calculateMacros, getDailyPlan, getAllDailyPlans, getFoodEntries, getWorkoutLog, getExtraTrainings } from '../../lib/db';
 import { STUDY_SCHEDULE } from '../../data/presets';
 import { SkeletonCard } from '../ui/SkeletonCard';
 import type { WorkoutLog } from '../../types';
@@ -54,10 +54,11 @@ export default function Dashboard() {
     const plan = await getDailyPlan(today);
     setTodayPlan(plan || null);
 
-    const [allPlans, foods, workout] = await Promise.all([
+    const [allPlans, foods, workout, extras] = await Promise.all([
       getAllDailyPlans(),
       getFoodEntries(today),
       getWorkoutLog(today),
+      getExtraTrainings(today),
     ]);
 
     let completed = 0, total = 0;
@@ -87,10 +88,11 @@ export default function Dashboard() {
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
     setFoodTotal(ft);
 
+    const extraBurn = extras.reduce((s, e) => s + e.calories, 0);
     if (workout) {
-      setWorkoutBurn(calcWorkoutBurn(workout, p.weight));
+      setWorkoutBurn(calcWorkoutBurn(workout, p.weight) + extraBurn);
     } else {
-      setWorkoutBurn(0);
+      setWorkoutBurn(extraBurn);
     }
     setLoaded(true);
   }

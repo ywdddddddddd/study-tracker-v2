@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Card, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { getOrCreateProfile, calculateMacros, type Task, type FoodEntry, getDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getWeeklyReview, getGymSchedules } from '../../lib/db';
+import { getOrCreateProfile, calculateMacros, type Task, type FoodEntry, getDailyPlan, getDailyPlansInRange, getFoodEntries, getWorkoutLog, getWeightRecords, getSleepRecords, getFoodEntriesInRange, getWorkoutLogsInRange, getWeeklyReview, getGymSchedules, getExtraTrainings, getExtraTrainingsInRange } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
 import { GYM_SCHEDULE } from '../../data/presets';
 import { runFullAnalysis } from '../../lib/ai/orchestrator';
@@ -42,7 +42,7 @@ export default function AIAssistant() {
     const twoDaysAgo = dayjs().subtract(2, 'day').format('YYYY-MM-DD');
 
     const [profile, todayPlan, rangePlans, foodEntries, workoutLogs,
-      yesterdayFoods, twoDaysAgoFoods, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, weekReview, gymOverrides] = await Promise.all([
+      yesterdayFoods, twoDaysAgoFoods, rangeFoodEntries, rangeWorkouts, weightRecords, sleepRecords, weekReview, gymOverrides, todayExtras, rangeExtras] = await Promise.all([
       getOrCreateProfile(), getDailyPlan(today),
       getDailyPlansInRange(dataStart, dataEnd), getFoodEntries(today), getWorkoutLog(today),
       getFoodEntries(yesterday), getFoodEntries(twoDaysAgo),
@@ -50,6 +50,8 @@ export default function AIAssistant() {
       getWeightRecords('desc').then(function (a) { return a.slice(0, 14); }), getSleepRecords(14).then(function (a) { return a.reverse(); }),
       getWeeklyReview(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD')),
       getGymSchedules().catch(function () { return []; }),
+      getExtraTrainings(today),
+      getExtraTrainingsInRange(dataStart, dataEnd).catch(function () { return []; }),
     ]);
 
     const macros = calculateMacros(profile);
@@ -60,9 +62,11 @@ export default function AIAssistant() {
     const foodTotal = function (entries: FoodEntry[]) { return entries.reduce(function (a, e) { return { c: a.c + e.calories, p: a.p + e.protein, f: a.f + e.fat, cb: a.cb + e.carbs }; }, { c: 0, p: 0, f: 0, cb: 0 }); };
     const ft = foodTotal(foodEntries);
     const workoutBurn = workoutLogs ? calcWorkoutBurn(workoutLogs, profile.weight) : 0;
+    const todayExtraKcal = todayExtras.reduce(function (s: number, e: any) { return s + e.calories; }, 0);
 
     const rangeFT = foodTotal(rangeFoodEntries);
     const rangeWB = rangeWorkouts.reduce(function (s: number, w: WorkoutLog) { return s + calcWorkoutBurn(w, profile.weight); }, 0);
+    const rangeExtraKcal = rangeExtras.reduce(function (s: number, e: any) { return s + e.calories; }, 0);
 
     const overrideMap: Record<string, string> = {};
     for (const o of gymOverrides) overrideMap[o.date] = o.gym;
@@ -102,19 +106,22 @@ export default function AIAssistant() {
         const eff = t.completionRate !== undefined ? t.completionRate + '%' : (t.status === 'completed' ? '100%' : 'N/A');
         return '- ' + t.text + ': ' + (t.status === 'completed' ? '✅' : t.status === 'failed' ? '❌' : '⬜') + ' 效率' + eff + ' 实际' + t.actualMinutes + 'min/预计' + t.plannedMinutes + 'min' + (t.reason ? ' [' + t.reason + ']' : '');
       }).join('\n') : '无记录') + '\n' +
-      '总专注：' + (todayPlan?.totalFocusMinutes || 0) + 'min | 复盘：' + (todayPlan?.conquered || '无') + ' | 难点：' + (todayPlan?.difficulty || '无') + '\n\n' +
+      '总专注：' + (todayPlan?.totalFocusMinutes || 0) + 'min | 复盘：' + (todayPlan?.conquered || '无') + ' | 难点：' + (todayPlan?.difficulty || '无') + '\n' +
+      '今日运动消耗：' + workoutBurn + 'kcal | 加练：' + todayExtraKcal + 'kcal | 总消耗：' + (workoutBurn + todayExtraKcal + bmr) + 'kcal\n\n' +
       '=== 今日饮食 ===\n' + formatFoods(foodEntries, '今日') + '\n' +
       '今日总计：' + ft.c + 'kcal P' + ft.p.toFixed(1) + ' C' + ft.cb.toFixed(1) + ' F' + ft.f.toFixed(1) + '\n' +
       '目标：' + macros.calories + 'kcal P' + macros.protein + 'g C' + macros.carbs + 'g F' + macros.fat + 'g\n\n' +
       '=== 昨日饮食 ===\n' + formatFoods(yesterdayFoods, '昨日') + '\n\n' +
       '=== 前日饮食 ===\n' + formatFoods(twoDaysAgoFoods, '前日') + '\n\n' +
       '=== 今日训练 ===\n' + (workoutLogs ? '类型：' + workoutLogs.type + '，时长' + workoutLogs.duration + 'min，运动消耗' + workoutBurn + 'kcal，总消耗' + (workoutBurn + bmr) + 'kcal\n' +
-      '动作：\n' + workoutLogs.exercises.map(function (ex) { return ex.kind === 'cardio' ? '  - ' + ex.name + ': 有氧 ' + (ex.cardioParams?.duration || 0) + 'min @' + (ex.cardioParams?.speed || 0) + 'km/h' : '  - ' + ex.name + ': 力量 ' + ex.sets.length + '组 (' + ex.sets.map(function (s) { return s.reps + '次' + (s.weight > 0 ? s.weight + 'kg' : ''); }).join(', ') + ')'; }).join('\n') : '无训练记录') + '\n\n' +
+      '动作：\n' + workoutLogs.exercises.map(function (ex) { return ex.kind === 'cardio' ? '  - ' + ex.name + ': 有氧 ' + (ex.cardioParams?.duration || 0) + 'min @' + (ex.cardioParams?.speed || 0) + 'km/h' : '  - ' + ex.name + ': 力量 ' + ex.sets.length + '组 (' + ex.sets.map(function (s) { return s.reps + '次' + (s.weight > 0 ? s.weight + 'kg' : ''); }).join(', ') + ')'; }).join('\n') : '无训练记录') + '\n' +
+      '加练：' + (todayExtras.length > 0 ? todayExtras.map(function (e: any) { return '  - ' + e.name + ' (' + e.type + ') ' + e.calories + 'kcal'; }).join('\n') : '无') + '\n' +
       '=== 范围统计(' + dataStart + '~' + dataEnd + ') ===\n' +
       '记录：' + rangePlans.length + '天 | 完成任务：' + rangePlans.reduce(function (s, p) { return s + p.tasks.filter(function (t) { return t.status === 'completed'; }).length; }, 0) + ' | 失败：' + rangePlans.reduce(function (s, p) { return s + p.tasks.filter(function (t) { return t.status === 'failed'; }).length; }, 0) + '\n' +
       '总专注：' + rangePlans.reduce(function (s, p) { return s + p.totalFocusMinutes; }, 0) + 'min\n' +
       '总摄入：' + rangeFT.c + 'kcal P' + rangeFT.p.toFixed(1) + ' C' + rangeFT.cb.toFixed(1) + ' F' + rangeFT.f.toFixed(1) + '\n' +
-      '总训练消耗：' + rangeWB + 'kcal | 预估赤字：' + (rangeWB + bmr * rangePlans.length - rangeFT.c) + 'kcal\n\n' +
+      '总训练消耗：' + rangeWB + 'kcal | 加练：' + rangeExtraKcal + 'kcal | 总消耗：' + (rangeWB + rangeExtraKcal) + 'kcal\n' +
+      '预估赤字：' + (rangeWB + rangeExtraKcal + bmr * rangePlans.length - rangeFT.c) + 'kcal\n\n' +
       '=== 本周预算 ===\n' + budgetLines + '\n' +
       '目标：' + (weekReview?.taskGoals || '无') + ' | 进度：' + (weekReview?.progressGoals || '无') + '\n' +
       '运动配额：' + (weekReview?.budgetSport || 3.5) + 'h/周\n\n' +

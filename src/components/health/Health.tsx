@@ -7,7 +7,7 @@ import {
   getOrCreateProfile, updateProfile, calculateBMR, calculateMacros,
   type Profile, type WeightRecord, type SleepRecord,
   getWeightRecords, addWeightRecord, getSleepRecords, addSleepRecord, deleteSleepRecord, updateSleepRecord,
-  getFoodEntries, getWorkoutLog
+  getFoodEntries, getWorkoutLog, getExtraTrainings
 } from '../../lib/db';
 import type { WorkoutLog } from '../../types';
 import { useRegisterSave } from '../../hooks/useTabGuard';
@@ -61,11 +61,12 @@ export default function HealthPage() {
     const sr = await getSleepRecords(14);
     setSleepRecords(sr.reverse());
     const today = dayjs().format('YYYY-MM-DD');
-    const [foods, workout] = await Promise.all([getFoodEntries(today), getWorkoutLog(today)]);
+    const [foods, workout, extras] = await Promise.all([getFoodEntries(today), getWorkoutLog(today), getExtraTrainings(today)]);
     const intake = foods.reduce((s, e) => s + e.calories, 0);
     setTodayIntake(intake);
-    const burn = workout ? calcWorkoutBurn(workout, p.weight) : 0;
-    setTodayBurn(burn);
+    const workoutBurn = workout ? calcWorkoutBurn(workout, p.weight) : 0;
+    const extraBurn = extras.reduce((s, e) => s + e.calories, 0);
+    setTodayBurn(workoutBurn + extraBurn);
     setLoaded(true);
   }
 
