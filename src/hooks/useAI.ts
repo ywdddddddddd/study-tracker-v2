@@ -2,12 +2,11 @@ import { useState, useRef, useCallback } from 'react';
 
 // Primary: DeepSeek V4 Pro (thinking model)
 const PRIMARY_URL = 'https://api.deepseek.com/chat/completions';
-const PRIMARY_KEY = 'sk-0fb0a98da71a46388a7701b842ecd438';
+const PRIMARY_KEY = import.meta.env.VITE_DEEPSEEK_KEY || '';
 const PRIMARY_MODEL = 'deepseek-v4-pro';
 
-// Fallback: SiliconFlow DeepSeek-R1
 const FALLBACK_URL = 'https://api.siliconflow.cn/v1/chat/completions';
-const FALLBACK_KEY = 'sk-lldpkkegjmpexefnwqijwkouvijszfnuzamqxofutkkzirro';
+const FALLBACK_KEY = import.meta.env.VITE_SILICONFLOW_KEY || '';
 const FALLBACK_MODEL = 'deepseek-ai/DeepSeek-R1';
 
 // Errors that trigger fallback: timeout, rate limit, insufficient balance
